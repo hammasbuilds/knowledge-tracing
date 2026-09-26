@@ -55,7 +55,7 @@ def build_prompt(history: list[tuple[str, int]], target: str, max_history: int =
     return PROMPT.format(history="\n".join(lines), target=target)
 
 
-_NUM = re.compile(r"p_correct\"?\s*[:=]\s*\"?([0-9]*\.?[0-9]+)\s*(%?)")
+_NUM = re.compile(r"p_correct\"?\s*[:=]\s*\"?([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*(%?)")
 _BARE = re.compile(r"(?<![0-9.])([01](?:\.[0-9]+)?|\.[0-9]+)(?![0-9.])")
 
 
