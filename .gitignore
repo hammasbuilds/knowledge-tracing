@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Public datasets are downloaded, not authored here: scripts/fetch_data.sh
+# rebuilds them. Committing ~170 MB of someone else's release is not ours to do.
+data/raw/
+
+# One file per LLM generation; rebuilt by scripts/run_models.sh.
+results/llm_cache/
