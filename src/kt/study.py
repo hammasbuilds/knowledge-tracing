@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .data import Log
-from .metrics import bootstrap, calibration, score
+from .metrics import auc, bootstrap, calibration, score
 from .models.baseline import ItemMean
 from .models.bkt import BKT, UNBOUNDED
 from .models.dkt import DKT
@@ -74,8 +74,6 @@ def _log(msg: str, verbose: bool) -> None:
 
 def fit_family(cands: list[Candidate], train: Log, val: Log, verbose: bool = False):
     """Fit every candidate, keep the one with the best validation AUC."""
-    from .metrics import auc
-
     tried = []
     best = None
     for c in cands:

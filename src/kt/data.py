@@ -9,7 +9,7 @@ names. A row is one scored attempt. Two public datasets are supported:
 
 Both ship multi-skill attempts. ASSISTments repeats the whole row once per
 skill (same ``order_id``); the KDD file joins the skills with ``~~`` on one row.
-:func:`load_assistments` and :func:`load_algebra` return the log in one of two
+:func:`load_assistments` and :func:`load_algebra` return the log in one of three
 explicit shapes (see :data:`VARIANTS`) so the effect of that choice can be
 measured instead of assumed.
 """

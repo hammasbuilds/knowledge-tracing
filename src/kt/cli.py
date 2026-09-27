@@ -205,6 +205,8 @@ def _cmd_llm_score(a: argparse.Namespace) -> int:
     from .run import write_json
 
     jobs_path, answers_path, out_path = _llm_paths(a)
+    if not answers_path.exists():
+        raise DataError(f"{answers_path} does not exist: run `kt llm run` (scripts/run_models.sh)")
     res = score_jobs(_read_jsonl(jobs_path), _read_jsonl(answers_path), a.n_boot)
     res["model"] = a.model
     write_json(out_path, res)
@@ -307,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except DataError as e:
+    except (DataError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
