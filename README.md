@@ -107,6 +107,8 @@ Collapsed, all models, train / val / test:
 | IRT-2PL | item_sd=2 | 0.816 | 0.774 | 0.767 | [0.744, 0.785] | 0.433 | 0.038 |
 | DKT | hidden=64, lr=0.003 | 0.757 | 0.752 | 0.753 | [0.737, 0.769] | 0.435 | 0.010 |
 
+Train AUC for ItemMean and IRT is partly in-sample memorisation of item difficulty (17,751
+items, many seen by a handful of students), which is why it sits well above val and test.
 The ranking holds on two more student splits (seeds 1 and 2): IRT-1PL 0.760 / 0.777, DKT 0.731
 / 0.754, BKT 0.703 / 0.730.
 
