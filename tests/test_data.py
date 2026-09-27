@@ -115,3 +115,63 @@ def test_zip_skips_macos_resource_forks(tmp_path):
         zf.writestr("__MACOSX/a/._algebra_2005_2006_train.txt", b"\x00\x05\x16\x07junk")
         zf.writestr("a/algebra_2005_2006_train.txt", good)
     assert len(load_algebra(z, COLLAPSED)) == 1
+
+
+def test_crosscheck_compares_students_problems_order_and_skill_ids(tmp_path):
+    from kt.run import crosscheck_collapsed
+
+    ours_rows = [
+        (1, "u1", "p1", 1, "5", "A"),
+        (1, "u1", "p1", 1, "7", "B"),
+        (2, "u1", "p2", 0, "5", "A"),
+        (3, "u2", "p3", 1, "7", "B"),
+    ]
+    official = [
+        (1, "u1", "p1", 1, "5_7", "A"),
+        (2, "u1", "p2", 0, "5", "A"),
+        (3, "u2", "p3", 1, "7", "B"),
+    ]
+
+    def load(rows, name):
+        p = tmp_path / name
+        p.write_text(assist_csv(rows), encoding="latin-1")
+        return load_assistments(p, COLLAPSED)
+
+    ours = load(ours_rows, "ours.csv")
+    same = crosscheck_collapsed(ours, load(official, "off.csv"), "off.csv")
+    assert same["same_attempt_ids_in_same_order"] and same["same_students"]
+    assert same["same_problems"] and same["same_outcomes"]
+    assert same["rows_with_different_skill_ids"] == 0
+    wrong = [official[0], (2, "u1", "p9", 0, "5", "A"), (3, "u2", "p3", 1, "9", "B")]
+    diff = crosscheck_collapsed(ours, load(wrong, "wrong.csv"), "wrong.csv")
+    assert not diff["same_problems"] and diff["rows_with_different_skill_ids"] == 1
+
+
+def test_duplicate_audit_separates_multi_skill_rows_from_repeated_records(tmp_path):
+    from kt.audit import assistments_file_audit, duplicate_structure, exact_duplicate_mask
+
+    rows = [
+        (1, "u1", "p1", 1, "5", "A"),
+        (2, "u1", "p2", 0, "5", "A"),
+        (1, "u1", "p1", 1, "7", "B"),  # multi-skill: second tag of attempt 1
+        (1, "u1", "p1", 1, "5", "A"),  # repeated record of (1, 5)
+        (1, "u1", "p1", 1, "5", "A"),  # and again
+        (3, "u2", "p3", 1, "7", "B"),
+    ]
+    text = assist_csv(rows).splitlines()
+    text[5] = text[5].replace(",1,1,5,A", ",1,9,5,A")  # a copy whose attempt_count differs
+    p = tmp_path / "sb.csv"
+    p.write_text("\n".join(text) + "\n", encoding="latin-1")
+    raw = load_assistments(p, RAW)
+    d = duplicate_structure(raw)
+    assert d["attempts"] == 3 and d["multi_skill_extra_rows"] == 1
+    assert d["repeated_record_extra_rows"] == 2 and d["repeated_attempts"] == 1
+    assert d["copies_per_repeated_group"]["max"] == 3
+    assert d["students_owning_repeated_records"] == 1
+    assert exact_duplicate_mask(raw).sum() == 3
+    audit = assistments_file_audit(p)
+    assert audit["repeated_record_copies"] == 2 and audit["byte_identical_copies"] == 1
+    assert audit["columns_differing_in_copies"] == {"attempt_count": 1}
+    assert audit["file_order_repeat_previous_order_id"] == 2  # rows 4-5 follow order 1
+    with pytest.raises(ValueError):
+        duplicate_structure(load_assistments(p, COLLAPSED))

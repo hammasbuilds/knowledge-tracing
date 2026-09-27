@@ -104,7 +104,107 @@ def duplicates(d: Path) -> list[str]:
             dd = res["bootstrap_test"]["auc_diff"][f"DKT - {f}"]
             cells.append(f"{dd['point']:+.3f} {_ci(dd['ci'])}")
         out.append(f"| DKT - {f} | " + " | ".join(cells) + " |")
-    return out + [""]
+    out += ["", "Validation AUC next to test AUC (the same models, the val students):", ""]
+    out += [
+        "| rows are | " + " | ".join(f"{f} val / test" for f in ("BKT", "IRT-1PL", "DKT")) + " |"
+    ]
+    out.append("|---|---|---|---|")
+    for v, _, res in rows:
+        cells = " | ".join(
+            f"{res['scores'][f]['val']['auc']:.3f} / {res['scores'][f]['test']['auc']:.3f}"
+            for f in ("BKT", "IRT-1PL", "DKT")
+        )
+        out.append(f"| {v} | {cells} |")
+    return out + [""] + duplicate_detail(d, [v for v, _, _ in rows])
+
+
+def duplicate_detail(d: Path, variants: list[str]) -> list[str]:
+    """Where the repeated rows come from, how concentrated they are, and whether the
+    DKT gap holds on every split seed."""
+    data = _load(d / "data.json") or {}
+    out: list[str] = []
+    dup = data.get("duplicates")
+    if dup:
+        c = dup["copies_per_repeated_group"]
+        out += [
+            f"### {data['dataset']}: what the extra rows are",
+            "",
+            "| | rows |",
+            "|---|---:|",
+            f"| attempts | {dup['attempts']:,} |",
+            f"| extra rows from multi-skill tagging (one row per skill) | "
+            f"{dup['multi_skill_extra_rows']:,} |",
+            f"| extra rows from repeated records ({dup['repeated_attempts']:,} attempts, "
+            f"copied median {c['median']:.0f}x, max {c['max']}x) | "
+            f"{dup['repeated_record_extra_rows']:,} |",
+            f"| students owning any repeated record | {dup['students_owning_repeated_records']} |",
+            f"| share of repeated rows owned by the top 10 of them | "
+            f"{dup['share_of_repeated_rows_owned_by_top_10_students']:.1%} |",
+            "",
+        ]
+    audit = data.get("file_audit")
+    if audit:
+        cols = ", ".join(list(audit["columns_differing_in_copies"])[:6]) or "none"
+        out += [
+            f"In file order (before any sorting) {audit['file_order_repeat_share']:.1%} of rows "
+            f"repeat the previous row's order_id. Of {audit['repeated_record_copies']:,} "
+            f"repeated-record copies, {audit['byte_identical_copies']:,} are identical to the "
+            f"first; columns that differ: {cols}.",
+            "",
+        ]
+    raw = _load(d / "student_split_raw.json")
+    if raw and "repeated_records" in raw:
+        rr = raw["repeated_records"]
+        conc = rr["concentration"]
+        out += [
+            "| split | rows | attempts | rows per attempt | students | with repeated records "
+            "| their share of rows |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+        ]
+        for part in ("train", "val", "test"):
+            x = conc[part]
+            out.append(
+                f"| {part} | {x['rows']:,} | {x['attempts']:,} | {x['rows_per_attempt']:.2f} | "
+                f"{x['students']} | {x['students_with_repeated_records']} | "
+                f"{x['share_of_rows']:.1%} |"
+            )
+        w, wf = rr["scores_without_those_students"], rr["scores_without_those_students_first_row"]
+        out += [
+            "",
+            f"Raw test AUC with the {rr['test_students_excluded']} test students who own repeated "
+            "records removed:",
+            "",
+            "| model | all raw rows | raw rows, those students removed | "
+            "once per attempt, those students removed |",
+            "|---|---:|---:|---:|",
+        ]
+        for f in FAMILIES:
+            out.append(
+                f"| {f} | {raw['scores'][f]['test']['auc']:.3f} | {w[f]['auc']:.3f} | "
+                f"{wf[f]['auc']:.3f} |"
+            )
+        out.append("")
+    seeds = []
+    for v in variants:
+        runs = [_load(d / f"student_split_{v}{sfx}.json") for sfx in ("", "_seed1", "_seed2")]
+        if all(runs):
+            seeds.append((v, runs))
+    if seeds:
+        out += [
+            "DKT - BKT and DKT - IRT-1PL test AUC on three student splits:",
+            "",
+            "| rows are | seed 0 | seed 1 | seed 2 |",
+            "|---|---|---|---|",
+        ]
+        for v, runs in seeds:
+            for other in ("BKT", "IRT-1PL"):
+                cells = []
+                for r in runs:
+                    dd = r["bootstrap_test"]["auc_diff"][f"DKT - {other}"]
+                    cells.append(f"{dd['point']:+.3f} {_ci(dd['ci'])}")
+                out.append(f"| {v}, DKT - {other} | " + " | ".join(cells) + " |")
+        out.append("")
+    return out
 
 
 def leakage(d: Path) -> list[str]:
@@ -229,6 +329,39 @@ def identifiability(d: Path) -> list[str]:
     return out + [""]
 
 
+def crosscheck(d: Path) -> list[str]:
+    data = _load(d / "data.json") or {}
+    c = data.get("crosscheck")
+    if not c:
+        return []
+    keys = [k for k in c if k.startswith("same_") or k.startswith("rows_with")]
+    return [
+        f"### {data['dataset']}: our collapse vs the publisher's {c['official_file']}",
+        "",
+        "| check | result |",
+        "|---|---|",
+        *[f"| {k} | {c[k]} |" for k in keys],
+        "",
+    ]
+
+
+def llm_sample(d: Path) -> list[str]:
+    s = _load(d / "llm_sample.json")
+    if s is None:
+        return []
+    out = [
+        f"### LLM arm sample ({s['n']} test attempts, {s['students']} students): correct rate "
+        f"{s['sample_correct_rate']:.3f} vs {s['test_correct_rate']:.3f} on the whole test set",
+        "",
+        "| classical model on the sample | AUC | 95% CI | RMSE |",
+        "|---|---:|---|---:|",
+    ]
+    for k, sc in s["classical_on_sample"].items():
+        ci = s["bootstrap"]["models"][k]["auc_ci"]
+        out.append(f"| {k} | {sc['auc']:.3f} | {_ci(ci)} | {sc['rmse']:.3f} |")
+    return out + [""]
+
+
 def llm(d: Path) -> list[str]:
     r = _load(d / "llm_arm.json")
     if r is None:
@@ -255,10 +388,12 @@ def build(results: Path) -> str:
             headline,
             seeds,
             duplicates,
+            crosscheck,
             leakage,
             horizons,
             policy,
             identifiability,
+            llm_sample,
             llm,
         ):
             lines += section(d)

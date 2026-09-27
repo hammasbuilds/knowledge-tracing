@@ -74,10 +74,14 @@ def test_study_numbers_are_sane(study):
     assert v["collapsed"]["adjacent_copies"]["repeat_rows"] == 0
     raw = json.loads((out / "assist09" / "student_split_raw.json").read_text())
     assert "scores_first_row_of_attempt" in raw
+    assert (out / "assist09" / "student_split_raw_seed2.json").exists()
     rr = raw["repeated_records"]
     assert 0 < rr["test_students_excluded"] < raw["split"]["sizes"]["test"]["students"]
     assert rr["concentration"]["test"]["rows_per_attempt"] > 1
-    assert json.loads((out / "assist09" / "data.json").read_text())["duplicates"]["repeated_groups"] > 0
+    assert (
+        json.loads((out / "assist09" / "data.json").read_text())["duplicates"]["repeated_groups"]
+        > 0
+    )
 
 
 def test_saved_predictions_reload_on_the_same_split(study, assist_file):
@@ -168,6 +172,10 @@ def test_report_builds_every_table(study, capsys):
         "attempts ahead",
         "predicted 0.70",
         "guess/slip bounds",
+        "what the extra rows are",
+        "those students removed",
+        "on three student splits",
+        "Validation AUC next to test AUC",
     ):
         assert heading in text, heading
     assert main(["report", "--results", str(out / "nope")]) == 2

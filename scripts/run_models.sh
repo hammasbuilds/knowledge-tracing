@@ -18,11 +18,16 @@ MIN_FREE_GB="${MIN_FREE_GB:-12}"
 DRY=0
 [ "${1:-}" = "--dry-run" ] && DRY=1
 
-[ -f "$OUT/llm_jobs.jsonl" ] || {
-  echo "missing $OUT/llm_jobs.jsonl - build it with:" >&2
-  echo "  uv run kt llm build --data data/raw/skill_builder_data_original.csv" >&2
-  exit 1
-}
+# The job file holds real students' answer histories, and the ASSISTments terms
+# say the data must not be passed on, so it is rebuilt here rather than committed.
+# The sample is deterministic (seed 0) and checked against the saved predictions.
+if [ ! -f "$OUT/llm_jobs.jsonl" ]; then
+  [ -f data/raw/skill_builder_data_original.csv ] || {
+    echo "missing data/raw/skill_builder_data_original.csv - run scripts/fetch_data.sh assist09" >&2
+    exit 1
+  }
+  uv run --quiet kt llm build --data data/raw/skill_builder_data_original.csv
+fi
 
 echo "== job list"
 echo "  1. kt llm run    model=$MODEL host=$HOST jobs=$(wc -l < "$OUT/llm_jobs.jsonl")"
@@ -52,7 +57,7 @@ if command -v nvidia-smi >/dev/null; then
     echo "GPU is busy (another job holds >25% of its memory); refusing to start" >&2; exit 1
   fi
 fi
-curl -s -m 10 "$HOST/api/tags" | grep -q "\"$MODEL\"" || {
+curl -s --noproxy "*" -m 10 "$HOST/api/tags" | grep -q "\"$MODEL\"" || {
   echo "ollama at $HOST does not list $MODEL (ollama pull $MODEL)" >&2; exit 1
 }
 

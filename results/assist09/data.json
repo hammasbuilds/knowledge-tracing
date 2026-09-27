@@ -95,7 +95,37 @@
       "skills": 149,
       "items": 17751
     },
-    "same_attempt_ids": true,
-    "same_outcomes": true
+    "same_row_count": true,
+    "same_attempt_ids_in_same_order": true,
+    "same_students": true,
+    "same_problems": true,
+    "same_outcomes": true,
+    "rows_with_different_skill_ids": 0
+  },
+  "duplicates": {
+    "rows": 459208,
+    "attempts": 283105,
+    "multi_skill_extra_rows": 54896,
+    "repeated_record_extra_rows": 121207,
+    "repeated_groups": 3227,
+    "repeated_attempts": 3213,
+    "copies_per_repeated_group": {
+      "median": 37.0,
+      "p90": 93.0,
+      "max": 215
+    },
+    "students_owning_repeated_records": 133,
+    "share_of_repeated_rows_owned_by_top_10_students": 0.26681614349775784
+  },
+  "file_audit": {
+    "rows_with_skill": 459208,
+    "file_order_repeat_previous_order_id": 121207,
+    "file_order_repeat_share": 0.2639479277364506,
+    "repeated_record_copies": 121207,
+    "byte_identical_copies": 0,
+    "columns_differing_in_copies": {
+      "opportunity": 121207,
+      "opportunity_original": 120929
+    }
   }
 }

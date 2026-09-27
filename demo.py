@@ -3,27 +3,21 @@
 1. Students are simulated from BKT parameters we choose; EM has to recover them.
 2. The no-peeking contract: flipping a student's *future* answers must not
    change any model's prediction for the present.
-3. The BKT fitted on ASSISTments 2009 (models/assist09_bkt.json, committed)
-   reads a short answer history and picks the next exercise.
+3. The IRT and BKT fitted on ASSISTments 2009 (packaged with the library)
+   read a short answer history and pick the next exercise.
 
 Runs in a few seconds from a clean clone; no dataset download needed.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import numpy as np
 
-from kt.cli import knowledge_by_skill
 from kt.models.bkt import BKT
 from kt.models.pfa import PFA
-from kt.policy import recommend
 from kt.seq import positions
 from kt.synthetic import simulate_bkt
-
-ROOT = Path(__file__).resolve().parent
+from kt.tutor import load_model, plan_next
 
 TRUE = {
     "prior": [0.10, 0.50, 0.20],
@@ -70,11 +64,8 @@ def part2() -> None:
 
 
 def part3() -> None:
-    print("\n== 3. Next exercise for a real-skill history (BKT fitted on ASSISTments 2009)")
-    spec_path = ROOT / "models" / "assist09_bkt.json"
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    model = BKT.from_json(spec)
-    names = spec["skill_names"]
+    print()
+    print("== 3. Next exercise for one history, from the two packaged ASSISTments 2009 models")
     history = [
         ("Addition and Subtraction Integers", 1),
         ("Addition and Subtraction Integers", 1),
@@ -88,12 +79,15 @@ def part3() -> None:
     ]
     for skill, c in history:
         print(f"   {'correct  ' if c else 'incorrect'}  {skill}")
-    table = knowledge_by_skill(model, names, history)
-    practised = {n: v["p_correct"] for n, v in table.items() if v["practised"]}
-    for n, p in sorted(practised.items(), key=lambda kv: kv[1]):
-        print(f"   P(correct next) = {p:.3f}  {n.split(':', 1)[1]}")
-    rec = recommend(practised, target=0.7)
-    print(f"   -> next: {rec.skill.split(':', 1)[1]} ({rec.reason})")
+    for kind in ("irt", "bkt"):
+        tm = load_model(kind)
+        plan = plan_next(tm, history, target=0.7, mastery=0.95)
+        print(f"   {kind.upper()} (mastery judged on {tm.mastery_label}):")
+        for st in sorted(plan.table, key=lambda r: r.p_correct):
+            extra = f", P(known) {st.mastery_value:.3f}" if kind == "bkt" else ""
+            print(f"     P(correct next) {st.p_correct:.3f}{extra}  {st.skill.split(':', 1)[1]}")
+        nxt = plan.next_skill.split(":", 1)[1] if plan.next_skill else "none"
+        print(f"     -> next: {nxt} ({plan.reason})")
 
 
 if __name__ == "__main__":

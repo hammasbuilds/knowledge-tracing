@@ -12,9 +12,24 @@ cd "$(dirname "$0")/.."
 mkdir -p data/raw
 
 # dataset | file | url | bytes | sha256
+#
 # assist09: the ORIGINAL 2009-10 skill-builder release (duplicates included - we
 # measure their effect) plus the publisher's corrected+collapsed release, which
-# is only used to cross-check our own de-duplication.
+# is only used to cross-check our own de-duplication. Both are the publisher's
+# own Google Drive links from
+#   https://sites.google.com/site/assistmentsdata/home/2009-2010-assistment-data/skill-builder-data-2009-2010
+# Terms of use (https://sites.google.com/site/assistmentsdata/termsofuseforusingdata):
+# no re-identification, do not pass the data on, acknowledge ASSISTments.
+#
+# algebra05: KDD Cup 2010 "Algebra I 2005-2006" development set. The OFFICIAL
+# source is PSLC DataShop, https://pslcdatashop.web.cmu.edu/KDDCup/downloads.jsp,
+# which needs a (free) login, so it cannot be scripted. This script fetches the
+# same zip from the USTC BASE mirror (http://base.ustc.edu.cn/data/KDD_Cup_2010/)
+# instead. DataShop publishes no per-file checksum for it, so the sha256 below
+# pins the file every number in this repo was computed on - it proves you have
+# that file, not that the mirror matches DataShop. If you download from DataShop
+# yourself, put algebra_2005_2006.zip in data/raw/ and compare the hash.
+# Cite: Stamper, Niculescu-Mizil, Ritter, Gordon & Koedinger (2010).
 DRIVE="https://drive.usercontent.google.com/download?export=download&confirm=t"
 FILES=(
   "assist09|skill_builder_data_original.csv|$DRIVE&id=0B2X0QD6q79ZJUFU1cjYtdGhVNjg&resourcekey=0-OyI8ZWxtGSAzhodUIcMf_g|83201940|f22e3fb7872c1784ce93b0f9ebabbe0cbcac4f896fd8b4a11667b9715d77dbdc"

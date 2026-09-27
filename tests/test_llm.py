@@ -71,7 +71,9 @@ def test_cache_prevents_repeat_calls_and_keys_on_the_full_request(tmp_path):
     assert fake.calls == 2
     spec = request_spec("m")
     assert cache_key(spec, "p") != cache_key({**spec, "format": None}, "p")
-    assert cache_key(spec, "p") != cache_key({**spec, "options": {**spec["options"], "seed": 1}}, "p")
+    assert cache_key(spec, "p") != cache_key(
+        {**spec, "options": {**spec["options"], "seed": 1}}, "p"
+    )
 
 
 class _Server:
@@ -84,7 +86,9 @@ class _Server:
 
         class H(BaseHTTPRequestHandler):
             def do_POST(self):  # noqa: N802
-                outer.bodies.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                outer.bodies.append(
+                    json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                )
                 code, body = outer.replies.pop(0)
                 data = body.encode()
                 self.send_response(code)
@@ -133,7 +137,9 @@ def test_ollama_call_retries_server_errors_then_fails_cleanly():
             ollama_call(request_spec("m"), srv.host, timeout=5, sleep=slept.append)("x")
     finally:
         srv.close()
-    dead = ollama_call(request_spec("m"), "http://127.0.0.1:9", timeout=2, retries=1, sleep=slept.append)
+    dead = ollama_call(
+        request_spec("m"), "http://127.0.0.1:9", timeout=2, retries=1, sleep=slept.append
+    )
     with pytest.raises(LLMError, match="after 2 tries"):
         dead("x")
 

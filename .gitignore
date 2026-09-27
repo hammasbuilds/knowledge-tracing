@@ -13,3 +13,8 @@ data/raw/
 
 # One file per LLM generation; rebuilt by scripts/run_models.sh.
 results/llm_cache/
+
+# Derived from ASSISTments student histories; the terms of use forbid passing
+# the data on. scripts/run_models.sh rebuilds it deterministically.
+results/*/llm_jobs.jsonl
+results/*/llm_answers.jsonl
