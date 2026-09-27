@@ -1,0 +1,54 @@
+{
+  "dataset": "algebra05",
+  "source": "algebra_2005_2006.zip",
+  "variants": {
+    "expanded": {
+      "variant": "expanded",
+      "rows": 884102,
+      "attempts": 607025,
+      "rows_per_attempt": 1.4564507227873646,
+      "students": 574,
+      "items": 176630,
+      "skills": 112,
+      "correct_rate": 0.7143372597279499,
+      "cleaning": {
+        "raw_rows": 809694,
+        "missing_skill_rows": 202669,
+        "exact_duplicate_rows": 0,
+        "non_binary_rows": 0,
+        "attempts": 607025,
+        "multi_skill_attempts": 190514,
+        "rows": 884102
+      },
+      "adjacent_copies": {
+        "rows": 884102,
+        "repeat_rows": 277077,
+        "repeat_share": 0.31339935889750276
+      }
+    },
+    "collapsed": {
+      "variant": "collapsed",
+      "rows": 607025,
+      "attempts": 607025,
+      "rows_per_attempt": 1.0,
+      "students": 574,
+      "items": 176630,
+      "skills": 291,
+      "correct_rate": 0.7552884971788641,
+      "cleaning": {
+        "raw_rows": 809694,
+        "missing_skill_rows": 202669,
+        "exact_duplicate_rows": 0,
+        "non_binary_rows": 0,
+        "attempts": 607025,
+        "multi_skill_attempts": 190514,
+        "rows": 607025
+      },
+      "adjacent_copies": {
+        "rows": 607025,
+        "repeat_rows": 0,
+        "repeat_share": 0.0
+      }
+    }
+  }
+}
