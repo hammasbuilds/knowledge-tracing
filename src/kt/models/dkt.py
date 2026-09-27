@@ -22,7 +22,16 @@ from ..seq import positions
 
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
+    # tanh form: overflow-free without a clip, and cheaper than exp + divide
+    return 0.5 * (1.0 + np.tanh(0.5 * z))
+
+
+def _scatter_rows(target: np.ndarray, index: np.ndarray, rows: np.ndarray) -> None:
+    """``target[index[k]] += rows[k]`` for repeated indices (a faster np.add.at)."""
+    order = np.argsort(index, kind="stable")
+    idx = index[order]
+    starts = np.flatnonzero(np.concatenate(([True], idx[1:] != idx[:-1])))
+    target[idx[starts]] += np.add.reduceat(rows[order], starts, axis=0)
 
 
 @dataclass
@@ -148,7 +157,7 @@ def lstm_chunk(
     flat_s = skill.reshape(-1)
     flat_h = hs.reshape(-1, hdim)
     flat_d = dlogit.reshape(-1)
-    np.add.at(g_all["wo"].T, flat_s, flat_h * flat_d[:, None])
+    g_all["wo"] += _scatter_t(len(p.bo), flat_s, flat_h * flat_d[:, None])
     g_all["bo"] += np.bincount(flat_s, weights=flat_d, minlength=len(p.bo)).astype(dtype)
     dz_all = np.empty((bsz, steps, 4 * hdim), dtype=dtype)
     dh_next = np.zeros((bsz, hdim), dtype=dtype)
@@ -168,7 +177,7 @@ def lstm_chunk(
         dc_next = dc * f
     flat_dz = dz_all.reshape(-1, 4 * hdim)
     g_all["b"] += flat_dz.sum(axis=0)
-    np.add.at(g_all["wx"], tokens.reshape(-1), flat_dz)
+    _scatter_rows(g_all["wx"], tokens.reshape(-1), flat_dz)
     return loss, g_all, h, c, hs
 
 
@@ -316,6 +325,13 @@ class DKT:
         m.n_skills = int(d["n_skills"])
         m.params = LSTMParams(**{k: d[k] for k in LSTMParams.NAMES})
         return m
+
+
+def _scatter_t(n_out: int, index: np.ndarray, rows: np.ndarray) -> np.ndarray:
+    """(H, n_out) matrix whose column ``index[k]`` accumulates ``rows[k]``."""
+    acc = np.zeros((n_out, rows.shape[1]), dtype=rows.dtype)
+    _scatter_rows(acc, index, rows)
+    return acc.T
 
 
 def _copy(p: LSTMParams) -> LSTMParams:

@@ -106,3 +106,12 @@ def test_algebra_multi_kc_missing_kc_and_time_order(tmp_path):
     assert col.skill_names[col.skill[1]] == "KC-a+KC-b"
     assert len(load_algebra(p, EXPANDED)) == 4
     assert len(load_algebra(p, RAW)) == 5
+
+
+def test_zip_skips_macos_resource_forks(tmp_path):
+    good = ALGEBRA_HEADER + "1\ts1\tU1\tP1\t1\tx=1\t2005-09-09 12:25:00.0\t1\tKC-a\n"
+    z = tmp_path / "algebra.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("__MACOSX/a/._algebra_2005_2006_train.txt", b"\x00\x05\x16\x07junk")
+        zf.writestr("a/algebra_2005_2006_train.txt", good)
+    assert len(load_algebra(z, COLLAPSED)) == 1

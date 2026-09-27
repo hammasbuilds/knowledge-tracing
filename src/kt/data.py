@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 import zipfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -125,7 +126,7 @@ class Log:
         return first
 
 
-@dataclass
+@dataclass(slots=True)
 class _Row:
     user: str
     item: str
@@ -187,7 +188,14 @@ def _open_text(path: Path, member_suffix: str) -> Iterator[str]:
         raise DataError(f"{path} does not exist (run scripts/fetch_data.sh first)")
     if path.suffix.lower() == ".zip":
         with zipfile.ZipFile(path) as zf:
-            names = [n for n in zf.namelist() if n.endswith(member_suffix)]
+            # skip macOS resource forks (__MACOSX/._name), which share the suffix
+            names = [
+                n
+                for n in zf.namelist()
+                if n.endswith(member_suffix)
+                and not n.startswith("__MACOSX")
+                and not n.rsplit("/", 1)[-1].startswith("._")
+            ]
             if not names:
                 raise DataError(f"{path}: no member ending in {member_suffix!r}")
             with zf.open(names[0]) as fh:
@@ -319,8 +327,18 @@ def read_algebra_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, int]]
         counts["exact_duplicate_rows"] += len(parts) - len(uniq)
         row_id = int(rec["Row"])
         order = (rec["First Transaction Time"] or "", row_id)
-        item = f"{rec['Problem Hierarchy']}|{rec['Problem Name']}|{rec['Step Name']}"
-        rows.append(_Row(rec["Anon Student Id"], item, uniq, tuple(parts), int(cfa), row_id, order))
+        item = sys.intern(f"{rec['Problem Hierarchy']}|{rec['Problem Name']}|{rec['Step Name']}")
+        rows.append(
+            _Row(
+                sys.intern(rec["Anon Student Id"]),
+                item,
+                uniq,
+                tuple(parts),
+                int(cfa),
+                row_id,
+                order,
+            )
+        )
     return rows, counts
 
 

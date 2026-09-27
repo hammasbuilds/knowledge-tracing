@@ -150,3 +150,20 @@ def test_bkt_json_round_trip(study):
     spec = json.loads((models / "assist09_bkt.json").read_text())
     m = BKT.from_json(spec)
     assert np.all((m.params["guess"] > 0) & (m.params["guess"] <= 0.3))
+
+
+def test_report_builds_every_table(study, capsys):
+    out, _ = study
+    assert main(["report", "--results", str(out)]) == 0
+    text = (out / "SUMMARY.md").read_text(encoding="utf-8")
+    for heading in (
+        "split by student",
+        "different student splits",
+        "three ways of shaping the rows",
+        "row-level random split",
+        "attempts ahead",
+        "predicted 0.70",
+        "guess/slip bounds",
+    ):
+        assert heading in text, heading
+    assert main(["report", "--results", str(out / "nope")]) == 2
