@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .audit import exact_duplicate_mask, split_concentration
 from .data import Log
 from .metrics import auc, bootstrap, calibration, score
 from .models.baseline import ItemMean
@@ -155,6 +156,23 @@ def evaluate_student_split(
             seed,
             pairs,
         )
+    dup = exact_duplicate_mask(log)
+    if dup.any() and (keep_any := ~np.isin(test.user, np.unique(log.user[dup]))).any():
+        # how much of the result is carried by the few students with repeated records?
+        # (skipped when every test student has them - nothing would be left to score)
+        owners = np.unique(log.user[dup])
+        keep = keep_any
+        out["repeated_records"] = {
+            "concentration": split_concentration(log, split),
+            "test_students_excluded": int(len(np.intersect1d(np.unique(test.user), owners))),
+            "scores_without_those_students": {
+                fam: score(test.correct[keep], p[keep]) for fam, p in preds_test.items()
+            },
+            "scores_without_those_students_first_row": {
+                fam: score(test.correct[keep & first], p[keep & first])
+                for fam, p in preds_test.items()
+            },
+        }
     extras = {"models": models, "parts": parts, "split": split}
     return out, {"preds_test": preds_test, **extras}
 

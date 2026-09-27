@@ -11,9 +11,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -84,37 +86,56 @@ class Client(Protocol):
     def generate(self, prompt: str) -> str: ...
 
 
-def cache_key(model: str, prompt: str, options: dict) -> str:
+def request_spec(model: str) -> dict:
+    """Everything sent to Ollama except the prompt. The cache is keyed on this."""
+    return {"model": model, "stream": False, "format": "json", "options": dict(OPTIONS)}
+
+
+def cache_key(spec: dict, prompt: str) -> str:
+    """Hash of exactly what is sent: the full request spec plus the prompt."""
     h = hashlib.sha256()
-    h.update(model.encode())
+    h.update(json.dumps(spec, sort_keys=True).encode())
     h.update(b"\0")
     h.update(hashlib.sha256(prompt.encode()).hexdigest().encode())
-    h.update(b"\0")
-    h.update(json.dumps(options, sort_keys=True).encode())
     return h.hexdigest()
+
+
+class LLMError(RuntimeError):
+    """The model server could not be reached or returned something unusable."""
 
 
 @dataclass
 class CachedClient:
-    """Wraps a raw ``call(prompt) -> text`` with a one-file-per-generation cache."""
+    """Wraps a raw ``call(prompt) -> text`` with a one-file-per-generation cache.
 
-    model: str
+    ``spec`` must be the same dict ``call`` sends (see :func:`ollama_call`), so a
+    change of model, options or output format can never be served from a stale
+    cache entry.
+    """
+
+    spec: dict
     call: Callable[[str], str]
     cache_dir: Path
-    options: dict = field(default_factory=lambda: dict(OPTIONS))
     hits: int = 0
     misses: int = 0
 
+    @property
+    def model(self) -> str:
+        return self.spec["model"]
+
+    def path_for(self, prompt: str) -> Path:
+        key = cache_key(self.spec, prompt)
+        return self.cache_dir / key[:2] / f"{key}.json"
+
     def generate(self, prompt: str) -> str:
-        key = cache_key(self.model, prompt, self.options)
-        path = self.cache_dir / key[:2] / f"{key}.json"
+        path = self.path_for(prompt)
         if path.exists():
             self.hits += 1
             return json.loads(path.read_text(encoding="utf-8"))["response"]
         text = self.call(prompt)
         self.misses += 1
         path.parent.mkdir(parents=True, exist_ok=True)
-        record = {"model": self.model, "options": self.options, "prompt": prompt, "response": text}
+        record = {"request": self.spec, "prompt": prompt, "response": text}
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(record), encoding="utf-8")
         tmp.replace(path)
@@ -122,25 +143,46 @@ class CachedClient:
 
 
 def ollama_call(
-    model: str, host: str = DEFAULT_HOST, timeout: float = 300.0
+    spec: dict,
+    host: str = DEFAULT_HOST,
+    timeout: float = 300.0,
+    retries: int = 3,
+    backoff: float = 2.0,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> Callable[[str], str]:
-    """A raw call to Ollama's /api/generate (non-streaming)."""
+    """A raw call to Ollama's /api/generate sending ``{**spec, "prompt": ...}``.
+
+    Proxies are bypassed (the server is local; an ``http_proxy`` in the
+    environment must not reroute it). Connection errors and 5xx replies are
+    retried with exponential backoff; anything else raises :class:`LLMError`.
+    """
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def call(prompt: str) -> str:
-        body = json.dumps(
-            {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": OPTIONS,
-                "format": "json",
-            }
-        ).encode()
+        body = json.dumps({**spec, "prompt": prompt}).encode()
         req = urllib.request.Request(
             f"{host}/api/generate", data=body, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read())["response"]
+        last = ""
+        for attempt in range(retries + 1):
+            try:
+                with opener.open(req, timeout=timeout) as resp:
+                    payload = json.loads(resp.read())
+                if "response" not in payload:
+                    raise LLMError(f"{host} replied without a 'response' field: {payload}")
+                return payload["response"]
+            except urllib.error.HTTPError as e:
+                detail = e.read().decode("utf-8", "replace")[:200]
+                if e.code < 500:
+                    raise LLMError(f"{host} returned HTTP {e.code}: {detail}") from None
+                last = f"HTTP {e.code}: {detail}"
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                last = str(getattr(e, "reason", e))
+            except json.JSONDecodeError:
+                raise LLMError(f"{host} returned a body that is not JSON") from None
+            if attempt < retries:
+                sleep(backoff * 2**attempt)
+        raise LLMError(f"could not reach {host} after {retries + 1} tries: {last}")
 
     return call
 
@@ -224,4 +266,24 @@ def score_jobs(jobs: list[dict], answers: list[dict], n_boot: int = 1000, seed: 
         "distinct_llm_values": int(len(np.unique(llm))),
         "scores": {k: score(y, p) for k, p in preds.items()},
         "bootstrap": bootstrap(y, preds, groups, n_boot, seed, pairs),
+    }
+
+
+def describe_sample(jobs: list[dict], test: Log, n_boot: int = 1000, seed: int = 0) -> dict:
+    """How the frozen sample differs from the test set it was drawn from, and how
+    the classical models do on exactly these rows (the LLM's real comparison)."""
+    y = np.array([j["y"] for j in jobs], dtype=np.float64)
+    preds = {k: np.array([j["classical"][k] for j in jobs]) for k in jobs[0]["classical"]}
+    groups = np.unique([j["student"] for j in jobs], return_inverse=True)[1]
+    pos = positions(test)
+    eligible = pos >= min(j["position"] for j in jobs)
+    return {
+        "n": len(jobs),
+        "students": int(groups.max() + 1),
+        "sample_correct_rate": float(y.mean()),
+        "test_correct_rate": float(test.correct.mean()),
+        "eligible_test_correct_rate": float(test.correct[eligible].mean()),
+        "mean_position": float(np.mean([j["position"] for j in jobs])),
+        "classical_on_sample": {k: score(y, p) for k, p in preds.items()},
+        "bootstrap": bootstrap(y, preds, groups, n_boot, seed),
     }

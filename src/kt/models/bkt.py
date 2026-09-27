@@ -231,6 +231,31 @@ class BKT:
         guess, slip = self._p("guess", log.skill), self._p("slip", log.skill)
         return known * (1 - slip) + (1 - known) * guess
 
+    def predict_skills(
+        self, skill: np.ndarray, correct: np.ndarray, targets: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """For one student's history: (P(correct next), P(known now)) per target skill.
+
+        ``P(known)`` is the filtered probability of the latent state, including the
+        learning transition after the last attempt. Unlike P(correct) it can reach
+        1, so it is what mastery should be judged on: P(correct) is capped at
+        ``1 - slip``, and at 0.70 for any skill whose slip sits at the 0.3 bound.
+        """
+        p_correct = np.empty(len(targets))
+        known_out = np.empty(len(targets))
+        for k, s in enumerate(targets):
+            s_arr = np.array([s])
+            prior, learn = self._p("prior", s_arr)[0], self._p("learn", s_arr)[0]
+            guess, slip = self._p("guess", s_arr)[0], self._p("slip", s_arr)[0]
+            known = prior
+            for c in correct[skill == s]:
+                ek, eu = (1 - slip, guess) if c else (slip, 1 - guess)
+                post = known * ek / (known * ek + (1 - known) * eu)
+                known = post + (1 - post) * learn
+            known_out[k] = known
+            p_correct[k] = known * (1 - slip) + (1 - known) * guess
+        return p_correct, known_out
+
     def to_json(self) -> dict:
         return {
             "model": "bkt",

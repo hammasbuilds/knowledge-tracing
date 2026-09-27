@@ -1,4 +1,6 @@
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
 import pytest
@@ -6,9 +8,13 @@ from helpers import tiny_log
 
 from kt.llm import (
     CachedClient,
+    LLMError,
     build_prompt,
     cache_key,
+    describe_sample,
+    ollama_call,
     parse_probability,
+    request_spec,
     run_jobs,
     sample_jobs,
     score_jobs,
@@ -55,15 +61,81 @@ class FakeCall:
         return json.dumps({"p_correct": round((right + 1) / (right + wrong + 2), 3)})
 
 
-def test_cache_prevents_repeat_calls_and_keys_on_model_and_options(tmp_path):
+def test_cache_prevents_repeat_calls_and_keys_on_the_full_request(tmp_path):
     fake = FakeCall()
-    client = CachedClient("m1", fake, tmp_path)
+    client = CachedClient(request_spec("m1"), fake, tmp_path)
     a = client.generate("hello")
     b = client.generate("hello")
     assert a == b and fake.calls == 1 and client.hits == 1
-    CachedClient("m2", fake, tmp_path).generate("hello")
+    CachedClient(request_spec("m2"), fake, tmp_path).generate("hello")
     assert fake.calls == 2
-    assert cache_key("m", "p", {"t": 0}) != cache_key("m", "p", {"t": 1})
+    spec = request_spec("m")
+    assert cache_key(spec, "p") != cache_key({**spec, "format": None}, "p")
+    assert cache_key(spec, "p") != cache_key({**spec, "options": {**spec["options"], "seed": 1}}, "p")
+
+
+class _Server:
+    """A local stand-in for Ollama that records requests and replays scripted replies."""
+
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.bodies = []
+        outer = self
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                outer.bodies.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                code, body = outer.replies.pop(0)
+                data = body.encode()
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *a):
+                pass
+
+        self.srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.host = f"http://127.0.0.1:{self.srv.server_port}"
+
+    def close(self):
+        self.srv.shutdown()
+
+
+OK = (200, json.dumps({"response": '{"p_correct": 0.4}'}))
+
+
+def test_ollama_call_sends_exactly_the_cached_spec_and_ignores_proxies(monkeypatch):
+    srv = _Server([OK])
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    try:
+        spec = request_spec("fake")
+        assert ollama_call(spec, srv.host, timeout=5)("hi") == '{"p_correct": 0.4}'
+        body = srv.bodies[0]
+        assert body.pop("prompt") == "hi" and body == spec
+    finally:
+        srv.close()
+
+
+def test_ollama_call_retries_server_errors_then_fails_cleanly():
+    srv = _Server([(500, "busy"), OK])
+    slept = []
+    try:
+        call = ollama_call(request_spec("m"), srv.host, timeout=5, sleep=slept.append)
+        assert call("x") == '{"p_correct": 0.4}' and slept == [2.0]
+    finally:
+        srv.close()
+    srv = _Server([(404, '{"error": "model not found"}')])
+    try:
+        with pytest.raises(LLMError, match="HTTP 404"):
+            ollama_call(request_spec("m"), srv.host, timeout=5, sleep=slept.append)("x")
+    finally:
+        srv.close()
+    dead = ollama_call(request_spec("m"), "http://127.0.0.1:9", timeout=2, retries=1, sleep=slept.append)
+    with pytest.raises(LLMError, match="after 2 tries"):
+        dead("x")
 
 
 def _log():
@@ -93,7 +165,7 @@ def test_run_and_score_counts_unparsed_replies(tmp_path):
     log = _log()
     preds = {"ItemMean": np.full(len(log), 0.5), "BKT": log.correct * 0.6 + 0.2}
     jobs = sample_jobs(log, preds, n=40, seed=0)
-    answers = run_jobs(jobs, CachedClient("fake", FakeCall(), tmp_path))
+    answers = run_jobs(jobs, CachedClient(request_spec("fake"), FakeCall(), tmp_path))
     answers[0]["p"] = None
     res = score_jobs(jobs, answers, n_boot=50)
     assert res["n"] == 40 and res["parsed_share"] == pytest.approx(39 / 40)
@@ -101,3 +173,13 @@ def test_run_and_score_counts_unparsed_replies(tmp_path):
     assert "LLM - BKT" in res["bootstrap"]["auc_diff"]
     with pytest.raises(ValueError, match="no answer"):
         score_jobs(jobs, answers[1:])
+
+
+def test_describe_sample_reports_its_own_base_rate():
+    log = _log()
+    preds = {"ItemMean": np.full(len(log), 0.5), "BKT": log.correct * 0.6 + 0.2}
+    jobs = sample_jobs(log, preds, n=40, seed=0)
+    d = describe_sample(jobs, log, n_boot=20)
+    assert d["sample_correct_rate"] == pytest.approx(np.mean([j["y"] for j in jobs]))
+    assert d["test_correct_rate"] == pytest.approx(log.correct.mean())
+    assert d["classical_on_sample"]["BKT"]["auc"] == 1.0

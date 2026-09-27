@@ -21,7 +21,7 @@ def assist_file(tmp_path_factory):
         lines.append(row)
         if j % 7 == 0:
             lines.append(f"{j + 1},1,{u},1,p{s}-{j % 4},1,{c},1,9,shared skill\n")
-        if j % 11 == 0:
+        if j % 11 == 0 and u % 3 == 0:  # only some students have repeated records
             lines.append(row)
     path = tmp_path_factory.mktemp("data") / "skill_builder_data.csv"
     path.write_text("".join(lines), encoding="latin-1")
@@ -74,6 +74,10 @@ def test_study_numbers_are_sane(study):
     assert v["collapsed"]["adjacent_copies"]["repeat_rows"] == 0
     raw = json.loads((out / "assist09" / "student_split_raw.json").read_text())
     assert "scores_first_row_of_attempt" in raw
+    rr = raw["repeated_records"]
+    assert 0 < rr["test_students_excluded"] < raw["split"]["sizes"]["test"]["students"]
+    assert rr["concentration"]["test"]["rows_per_attempt"] > 1
+    assert json.loads((out / "assist09" / "data.json").read_text())["duplicates"]["repeated_groups"] > 0
 
 
 def test_saved_predictions_reload_on_the_same_split(study, assist_file):

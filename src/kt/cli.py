@@ -3,18 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
 from pathlib import Path
 
-import numpy as np
-
-from .data import COLLAPSED, LOADERS, VARIANTS, DataError, Log
-from .models.bkt import BKT
-from .policy import recommend
-
-ROOT = Path(__file__).resolve().parents[2]
+from .data import COLLAPSED, LOADERS, VARIANTS, DataError
+from .llm import LLMError
+from .tutor import load_model, plan_next, read_history
 
 
 def _cmd_inspect(a: argparse.Namespace) -> int:
@@ -46,73 +41,28 @@ def _cmd_study(a: argparse.Namespace) -> int:
     return 0
 
 
-def read_history(path: Path) -> list[tuple[str, int]]:
-    """CSV with a header containing ``skill`` and ``correct`` (0/1), oldest first."""
-    with path.open(encoding="utf-8", newline="") as fh:
-        reader = csv.DictReader(fh)
-        if reader.fieldnames is None or not {"skill", "correct"} <= set(reader.fieldnames):
-            raise DataError(f"{path}: need a header with 'skill' and 'correct' columns")
-        out = []
-        for i, rec in enumerate(reader, 2):
-            if rec["correct"].strip() not in ("0", "1"):
-                raise DataError(f"{path} line {i}: correct must be 0 or 1, got {rec['correct']!r}")
-            out.append((rec["skill"].strip(), int(rec["correct"])))
-    return out
-
-
-def resolve_skill(query: str, names: list[str]) -> int:
-    """Match a skill by exact name, by its id prefix (``311``), or by its label."""
-    for i, n in enumerate(names):
-        if query == n or query == n.split(":", 1)[0] or query == n.split(":", 1)[-1]:
-            return i
-    lowered = [i for i, n in enumerate(names) if query.lower() in n.lower()]
-    if len(lowered) == 1:
-        return lowered[0]
-    hint = f"; {len(lowered)} names contain it" if lowered else ""
-    raise DataError(f"unknown skill {query!r}{hint}. Run `kt skills` to list them.")
-
-
-def knowledge_by_skill(model: BKT, names: list[str], history: list[tuple[str, int]]) -> dict:
-    """Run BKT over the student's history and return P(correct next) per skill."""
-    skill_ids = [resolve_skill(s, names) for s, _ in history]
-    rows = len(history)
-    log = Log(
-        name="history",
-        variant=COLLAPSED,
-        user=np.zeros(rows + len(names), dtype=np.int32),
-        item=np.zeros(rows + len(names), dtype=np.int32),
-        skill=np.asarray(skill_ids + list(range(len(names))), dtype=np.int32),
-        correct=np.asarray([c for _, c in history] + [0] * len(names), dtype=np.int8),
-        attempt=np.arange(rows + len(names), dtype=np.int64),
-        skill_names=names,
-        item_names=["?"],
-        user_names=["student"],
-    )
-    # one probe row per skill appended after the history; its prediction uses
-    # only the real history (probe outcomes come after it and are never read)
-    p = model.predict(log)[rows:]
-    seen = {i for i in skill_ids}
-    return {names[i]: {"p_correct": float(p[i]), "practised": i in seen} for i in range(len(names))}
-
-
 def _cmd_recommend(a: argparse.Namespace) -> int:
-    spec = json.loads(Path(a.model).read_text(encoding="utf-8"))
-    model = BKT.from_json(spec)
-    names = spec["skill_names"]
+    tm = load_model(a.model)
     history = read_history(Path(a.history))
-    table = knowledge_by_skill(model, names, history)
-    candidates = [names[resolve_skill(s, names)] for s in a.candidates] if a.candidates else None
-    if candidates is None:
-        candidates = [n for n, v in table.items() if v["practised"]] or list(table)
-    mastered = {n for n in candidates if table[n]["p_correct"] >= a.mastery}
-    pool = {n: table[n]["p_correct"] for n in candidates}
-    rec = recommend(pool, a.target, mastered if len(mastered) < len(pool) else None)
+    plan = plan_next(tm, history, a.target, a.mastery, a.candidates)
+    print(f"model: {tm.kind.upper()} ({tm.source}); mastery = {tm.mastery_label} >= {a.mastery}")
     print(f"history: {len(history)} attempts over {len({s for s, _ in history})} skills")
-    print(f"{'P(correct)':>10}  skill")
-    for n in sorted(pool, key=pool.get):
-        flag = "  <- next" if n == rec.skill else ("  (mastered)" if n in mastered else "")
-        print(f"{pool[n]:>10.3f}  {n}{flag}")
-    print(f"\nnext exercise: {rec.skill} ({rec.reason})")
+    label = tm.mastery_label if tm.kind == "bkt" else ""
+    print(f"{'P(correct)':>10}  {label:>8}  skill")
+    for st in sorted(plan.table, key=lambda r: r.p_correct):
+        if st.skill == plan.next_skill:
+            flag = "  <- next"
+        elif st.skill in plan.mastered:
+            flag = "  (mastered)"
+        elif st.skill in plan.unreachable:
+            flag = f"  (cannot reach {a.mastery}: ceiling {st.ceiling:.2f})"
+        else:
+            flag = ""
+        known = f"{st.mastery_value:>8.3f}" if tm.kind == "bkt" else " " * 8
+        print(f"{st.p_correct:>10.3f}  {known}  {st.skill}{flag}")
+    nxt = plan.next_skill if plan.next_skill is not None else "none"
+    print()
+    print(f"next exercise: {nxt} ({plan.reason})")
     return 0
 
 
@@ -131,8 +81,7 @@ def _cmd_report(a: argparse.Namespace) -> int:
 
 
 def _cmd_skills(a: argparse.Namespace) -> int:
-    spec = json.loads(Path(a.model).read_text(encoding="utf-8"))
-    for n in spec["skill_names"]:
+    for n in load_model(a.model).skill_names:
         print(n)
     return 0
 
@@ -143,8 +92,8 @@ def _llm_paths(a: argparse.Namespace) -> tuple[Path, Path, Path]:
 
 
 def _cmd_llm_build(a: argparse.Namespace) -> int:
-    from .llm import sample_jobs
-    from .run import load_test_predictions
+    from .llm import describe_sample, sample_jobs
+    from .run import load_test_predictions, write_json
 
     jobs_path, _, _ = _llm_paths(a)
     test, preds = load_test_predictions(a.dataset, a.data, Path(a.results))
@@ -153,8 +102,11 @@ def _cmd_llm_build(a: argparse.Namespace) -> int:
     with jobs_path.open("w", encoding="utf-8") as fh:
         for j in jobs:
             fh.write(json.dumps(j) + "\n")
+    info = describe_sample(jobs, test)
+    write_json(jobs_path.parent / "llm_sample.json", info)
     print(
-        f"wrote {len(jobs)} jobs from {len({j['student'] for j in jobs})} students to {jobs_path}"
+        f"wrote {len(jobs)} jobs from {info['students']} students to {jobs_path}; correct rate "
+        f"{info['sample_correct_rate']:.3f} (test set {info['test_correct_rate']:.3f})"
     )
     return 0
 
@@ -168,21 +120,19 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _cmd_llm_run(a: argparse.Namespace) -> int:
-    from .llm import CachedClient, ollama_call, run_jobs
+    from .llm import CachedClient, ollama_call, request_spec, run_jobs
 
     jobs_path, answers_path, _ = _llm_paths(a)
     jobs = _read_jsonl(jobs_path)
     if a.limit:
         jobs = jobs[: a.limit]
-    cache = Path(a.cache)
-    done = sum(
-        1 for j in jobs if (cache / (k := _key(a.model, j["prompt"]))[:2] / f"{k}.json").exists()
-    )
+    spec = request_spec(a.model)
+    client = CachedClient(spec, ollama_call(spec, a.host), Path(a.cache))
+    done = sum(1 for j in jobs if client.path_for(j["prompt"]).exists())
     if a.dry_run:
         print(f"model {a.model} at {a.host}")
         print(f"jobs: {len(jobs)}  cached: {done}  model calls needed: {len(jobs) - done}")
         return 0
-    client = CachedClient(a.model, ollama_call(a.model, a.host), cache)
     answers = run_jobs(jobs, client, progress=True)
     with answers_path.open("w", encoding="utf-8") as fh:
         for ans in answers:
@@ -192,12 +142,6 @@ def _cmd_llm_run(a: argparse.Namespace) -> int:
         f" -> {answers_path}"
     )
     return 0
-
-
-def _key(model: str, prompt: str) -> str:
-    from .llm import OPTIONS, cache_key
-
-    return cache_key(model, prompt, OPTIONS)
 
 
 def _cmd_llm_score(a: argparse.Namespace) -> int:
@@ -242,8 +186,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("study", help="run every experiment and write results/<dataset>/*.json")
     data_args(sp)
     sp.add_argument("--variant", action="append", choices=VARIANTS, help="repeatable; default all")
-    sp.add_argument("--out", default=str(ROOT / "results"))
-    sp.add_argument("--models-dir", default=str(ROOT / "models"), help="where to save BKT/DKT")
+    sp.add_argument("--out", default="results")
+    sp.add_argument(
+        "--models-dir", default="models", help="where to save the fitted BKT, IRT and DKT"
+    )
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--n-boot", type=int, default=1000)
     sp.add_argument("--quick", action="store_true", help="tiny grids, 3 DKT epochs: a smoke run")
@@ -254,30 +200,39 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=_cmd_study)
 
     sp = sub.add_parser("recommend", help="pick the next skill for a student from their history")
-    sp.add_argument("--model", default=str(ROOT / "models" / "assist09_bkt.json"))
+    model_help = (
+        "'irt' (default) or 'bkt' for the packaged ASSISTments 2009 models, "
+        "or a model JSON written by `kt study`"
+    )
+    sp.add_argument("--model", default="irt", help=model_help)
     sp.add_argument(
         "--history", required=True, help="CSV with columns skill,correct (oldest first)"
     )
     sp.add_argument("--target", type=float, default=0.7, help="target P(correct), default 0.7")
-    sp.add_argument("--mastery", type=float, default=0.95, help="P(correct) treated as mastered")
+    sp.add_argument(
+        "--mastery",
+        type=float,
+        default=0.95,
+        help="mastered when P(known) (BKT) or P(correct) (IRT) reaches this; default 0.95",
+    )
     sp.add_argument(
         "--candidates", nargs="+", help="skills to choose from (default: practised ones)"
     )
     sp.set_defaults(func=_cmd_recommend)
 
     sp = sub.add_parser("report", help="write results/SUMMARY.md from the result JSON files")
-    sp.add_argument("--results", default=str(ROOT / "results"))
+    sp.add_argument("--results", default="results")
     sp.set_defaults(func=_cmd_report)
 
     sp = sub.add_parser("skills", help="list the skills a saved model knows")
-    sp.add_argument("--model", default=str(ROOT / "models" / "assist09_bkt.json"))
+    sp.add_argument("--model", default="irt", help=model_help)
     sp.set_defaults(func=_cmd_skills)
 
     llm = sub.add_parser("llm", help="the LLM arm (build jobs, run them, score them)")
     lsub = llm.add_subparsers(dest="llm_cmd", required=True)
 
     def llm_args(sp: argparse.ArgumentParser) -> None:
-        sp.add_argument("--out", default=str(ROOT / "results" / "assist09"))
+        sp.add_argument("--out", default="results/assist09")
         sp.add_argument("--model", default=DEFAULT_MODEL)
 
     sp = lsub.add_parser(
@@ -285,7 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     data_args(sp)
     llm_args(sp)
-    sp.add_argument("--results", default=str(ROOT / "results"))
+    sp.add_argument("--results", default="results")
     sp.add_argument("-n", type=int, default=300)
     sp.add_argument("--seed", type=int, default=0)
     sp.set_defaults(func=_cmd_llm_build)
@@ -293,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = lsub.add_parser("run", help="ask the model (cached, resumable)")
     llm_args(sp)
     sp.add_argument("--host", default=DEFAULT_HOST)
-    sp.add_argument("--cache", default=str(ROOT / "results" / "llm_cache"))
+    sp.add_argument("--cache", default="results/llm_cache")
     sp.add_argument("--limit", type=int, default=0)
     sp.add_argument("--dry-run", action="store_true", help="print the job count and exit")
     sp.set_defaults(func=_cmd_llm_run)
@@ -309,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (DataError, ValueError) as e:
+    except (DataError, LLMError, ValueError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

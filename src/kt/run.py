@@ -8,9 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
+from .audit import assistments_file_audit, duplicate_structure
 from .data import COLLAPSED, EXPANDED, LOADERS, RAW, DataError, Log
 from .models.bkt import BKT
 from .models.dkt import DKT
+from .models.irt import IRT
 from .policy import band_check_ci, mastery_tradeoff
 from .study import (
     Candidate,
@@ -70,11 +72,39 @@ def adjacent_copy_rate(log: Log) -> dict:
     }
 
 
+def _skill_ids(name: str) -> frozenset[str]:
+    """Skill ids of a collapsed skill name: ours join ``id:name`` labels with
+    ``+``; the official file writes a joint id such as ``1_13``."""
+    ids: set[str] = set()
+    for part in name.split("+"):
+        ids.update(part.split(":", 1)[0].split("_"))
+    return frozenset(ids)
+
+
 def crosscheck_collapsed(ours: Log, official: Log, path: str | Path) -> dict:
-    """Compare our collapse of the raw file with the publisher's collapsed release."""
-    a = np.argsort(ours.attempt, kind="stable")
-    b = np.argsort(official.attempt, kind="stable")
-    same = len(ours) == len(official) and bool(np.array_equal(ours.attempt[a], official.attempt[b]))
+    """Compare our collapse of the raw file with the publisher's collapsed release,
+    row by row in sequence order: attempt id, student, problem, outcome, skill ids."""
+    same_len = len(ours) == len(official)
+    checks = {"same_row_count": same_len}
+    if same_len:
+        checks["same_attempt_ids_in_same_order"] = bool(
+            np.array_equal(ours.attempt, official.attempt)
+        )
+        checks["same_students"] = all(
+            ours.user_names[a] == official.user_names[b]
+            for a, b in zip(ours.user, official.user, strict=True)
+        )
+        checks["same_problems"] = all(
+            ours.item_names[a] == official.item_names[b]
+            for a, b in zip(ours.item, official.item, strict=True)
+        )
+        checks["same_outcomes"] = bool(np.array_equal(ours.correct, official.correct))
+        ours_ids = [_skill_ids(n) for n in ours.skill_names]
+        off_ids = [_skill_ids(n) for n in official.skill_names]
+        mismatched = sum(
+            ours_ids[a] != off_ids[b] for a, b in zip(ours.skill, official.skill, strict=True)
+        )
+        checks["rows_with_different_skill_ids"] = int(mismatched)
     return {
         "official_file": Path(path).name,
         "ours": {
@@ -89,8 +119,7 @@ def crosscheck_collapsed(ours: Log, official: Log, path: str | Path) -> dict:
             "skills": official.n_skills,
             "items": official.n_items,
         },
-        "same_attempt_ids": same,
-        "same_outcomes": same and bool(np.array_equal(ours.correct[a], official.correct[b])),
+        **checks,
     }
 
 
@@ -117,6 +146,10 @@ def run_dataset(
     info: dict = {"dataset": name, "source": Path(path).name, "variants": data_info}
     if crosscheck is not None:
         info["crosscheck"] = crosscheck_collapsed(head, loader(crosscheck, COLLAPSED), crosscheck)
+    if RAW in logs:
+        info["duplicates"] = duplicate_structure(logs[RAW])
+        if name == "assist09" and Path(path).suffix.lower() == ".csv":
+            info["file_audit"] = assistments_file_audit(path)
     write_json(out_dir / "data.json", info)
     if verbose:
         print(
@@ -148,6 +181,12 @@ def run_dataset(
             print(f"[{name}] student split, {v}", flush=True)
         res, _ = _student_split_fixed(logs[v], selected, seed, quick, verbose, n_boot)
         write_json(out_dir / f"student_split_{v}.json", res)
+        # the duplicate effect on the other two student splits as well
+        for extra_seed in (seed + 1, seed + 2):
+            if verbose:
+                print(f"[{name}] student split, {v}, seed {extra_seed}", flush=True)
+            res, _ = _student_split_fixed(logs[v], selected, extra_seed, quick, verbose, n_boot)
+            write_json(out_dir / f"student_split_{v}_seed{extra_seed}.json", res)
 
     np.savez_compressed(
         out_dir / "test_predictions_collapsed.npz",
@@ -194,6 +233,10 @@ def run_dataset(
         bkt: BKT = models["BKT"]
         write_json(
             models_dir / f"{name}_bkt.json", {**bkt.to_json(), "skill_names": head.skill_names}
+        )
+        irt: IRT = models["IRT-1PL"]
+        write_json(
+            models_dir / f"{name}_irt.json", {**irt.to_json(), "skill_names": head.skill_names}
         )
         dkt: DKT = models["DKT"]
         dkt.save(str(models_dir / f"{name}_dkt.npz"))

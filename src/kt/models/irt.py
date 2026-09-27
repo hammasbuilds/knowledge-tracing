@@ -130,3 +130,45 @@ class IRT:
             w /= w.sum(axis=1, keepdims=True)
             out[lo:hi] = np.sum(w * pg, axis=1)
         return out
+
+    def predict_skills(
+        self, skill: np.ndarray, correct: np.ndarray, targets: np.ndarray
+    ) -> np.ndarray:
+        """P(correct) on a new item of each target skill, given one student's history.
+
+        The ability posterior is formed from the history only (EAP over the
+        grid); new items carry their skill's difficulty (item offset 0).
+        """
+        ok = skill < len(self.beta)
+        a_h = np.where(ok, np.exp(self.log_a[np.minimum(skill, len(self.beta) - 1)]), 1.0)
+        b_h = np.where(ok, self.beta[np.minimum(skill, len(self.beta) - 1)], self.beta.mean())
+        logpost = LOG_PRIOR.copy()
+        if len(skill):
+            pg = _sigmoid(a_h[:, None] * GRID[None, :] - b_h[:, None])
+            y = correct[:, None]
+            logpost += np.where(y == 1, np.log(pg + 1e-12), np.log(1 - pg + 1e-12)).sum(axis=0)
+        w = np.exp(logpost - logpost.max())
+        w /= w.sum()
+        a_t = np.exp(self.log_a[targets])
+        return (_sigmoid(a_t[:, None] * GRID[None, :] - self.beta[targets][:, None]) * w).sum(
+            axis=1
+        )
+
+    def to_json(self) -> dict:
+        """Skill-level parameters only: item offsets and training abilities are not
+        needed to predict a new student on a new item, and are left out."""
+        return {
+            "model": "irt",
+            "two_pl": self.two_pl,
+            "item_sd": self.item_sd,
+            "beta": self.beta.tolist(),
+            "log_a": self.log_a.tolist(),
+        }
+
+    @classmethod
+    def from_json(cls, d: dict) -> IRT:
+        m = cls(two_pl=bool(d["two_pl"]), item_sd=float(d["item_sd"]))
+        m.name = "IRT-2PL" if m.two_pl else "IRT-1PL"
+        m.beta = np.asarray(d["beta"], dtype=np.float64)
+        m.log_a = np.asarray(d["log_a"], dtype=np.float64)
+        return m
