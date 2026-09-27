@@ -126,6 +126,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.8348074429689173,
+        "declared_share": 0.461086637298091,
+        "mean_effort": 3.5751346059716105,
+        "post_declaration_attempts": 7749,
+        "post_declaration_correct_rate": 0.6987998451413086
       }
     },
     "BKT": {
@@ -161,6 +168,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.7692032885077321,
+        "declared_share": 0.45961820851688695,
+        "mean_effort": 4.564855604503181,
+        "post_declaration_attempts": 5727,
+        "post_declaration_correct_rate": 0.7663698271346254
       }
     },
     "PFA": {
@@ -196,6 +210,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.7310013367377702,
+        "declared_share": 0.45961820851688695,
+        "mean_effort": 4.689672050905531,
+        "post_declaration_attempts": 5472,
+        "post_declaration_correct_rate": 0.7874634502923976
       }
     },
     "IRT-1PL": {
@@ -231,6 +252,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.8219323151685292,
+        "declared_share": 0.45961820851688695,
+        "mean_effort": 3.895741556534508,
+        "post_declaration_attempts": 7094,
+        "post_declaration_correct_rate": 0.7605018325345362
       }
     },
     "IRT-2PL": {
@@ -266,6 +294,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.8736241454939069,
+        "declared_share": 0.45961820851688695,
+        "mean_effort": 3.8996573666177192,
+        "post_declaration_attempts": 7086,
+        "post_declaration_correct_rate": 0.7564211120519334
       }
     },
     "DKT": {
@@ -301,6 +336,13 @@
         "mean_effort": 4.198727361722956,
         "post_declaration_attempts": 6475,
         "post_declaration_correct_rate": 0.6952895752895752
+      },
+      "matched_to_three_in_a_row": {
+        "threshold": 0.8052969301194505,
+        "declared_share": 0.45961820851688695,
+        "mean_effort": 4.657366617719041,
+        "post_declaration_attempts": 5538,
+        "post_declaration_correct_rate": 0.7999277717587576
       }
     }
   }

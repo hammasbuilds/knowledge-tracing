@@ -58,7 +58,7 @@
             "slip_max": 0.3
           },
           "val_auc": 0.7215152212051481,
-          "seconds": 12.1
+          "seconds": 12.2
         }
       ]
     },
@@ -79,7 +79,7 @@
             "l2": 1.0
           },
           "val_auc": 0.7071953368823037,
-          "seconds": 0.6
+          "seconds": 0.4
         },
         {
           "config": {
@@ -100,21 +100,21 @@
             "item_sd": 0.5
           },
           "val_auc": 0.7700309098334844,
-          "seconds": 23.3
+          "seconds": 20.9
         },
         {
           "config": {
             "item_sd": 1.0
           },
           "val_auc": 0.7757336669281886,
-          "seconds": 21.6
+          "seconds": 19.4
         },
         {
           "config": {
             "item_sd": 2.0
           },
           "val_auc": 0.7736491845813189,
-          "seconds": 22.5
+          "seconds": 19.8
         }
       ]
     },
@@ -128,21 +128,21 @@
             "item_sd": 0.5
           },
           "val_auc": 0.7653295298620029,
-          "seconds": 23.0
+          "seconds": 20.5
         },
         {
           "config": {
             "item_sd": 1.0
           },
           "val_auc": 0.7733610797072309,
-          "seconds": 23.0
+          "seconds": 22.1
         },
         {
           "config": {
             "item_sd": 2.0
           },
           "val_auc": 0.7739300816673509,
-          "seconds": 24.8
+          "seconds": 21.9
         }
       ]
     },
@@ -158,7 +158,7 @@
             "lr": 0.001
           },
           "val_auc": 0.7464042872471099,
-          "seconds": 47.1,
+          "seconds": 47.9,
           "epochs_run": 13,
           "best_epoch": 10
         },
@@ -168,7 +168,7 @@
             "lr": 0.003
           },
           "val_auc": 0.7491753991695433,
-          "seconds": 31.0,
+          "seconds": 31.2,
           "epochs_run": 9,
           "best_epoch": 6
         },
@@ -178,7 +178,7 @@
             "lr": 0.001
           },
           "val_auc": 0.7485815820026686,
-          "seconds": 68.8,
+          "seconds": 71.1,
           "epochs_run": 12,
           "best_epoch": 9
         },
@@ -188,7 +188,7 @@
             "lr": 0.003
           },
           "val_auc": 0.7519678033211495,
-          "seconds": 50.9,
+          "seconds": 53.2,
           "epochs_run": 9,
           "best_epoch": 6
         },
@@ -198,7 +198,7 @@
             "lr": 0.001
           },
           "val_auc": 0.7474034472597061,
-          "seconds": 184.3,
+          "seconds": 179.6,
           "epochs_run": 15,
           "best_epoch": 12
         },
@@ -208,7 +208,7 @@
             "lr": 0.003
           },
           "val_auc": 0.7502921320233733,
-          "seconds": 154.8,
+          "seconds": 171.4,
           "epochs_run": 13,
           "best_epoch": 10
         }

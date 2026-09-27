@@ -27,8 +27,10 @@ DRY=0
 echo "== job list"
 echo "  1. kt llm run    model=$MODEL host=$HOST jobs=$(wc -l < "$OUT/llm_jobs.jsonl")"
 echo "  2. kt llm score  -> $OUT/llm_arm.json"
-uv run kt llm run --model "$MODEL" --host "$HOST" --out "$OUT" --dry-run
-echo "  estimate: ~3 s per uncached call for a 14B model on one consumer GPU"
+plan=$(uv run --quiet kt llm run --model "$MODEL" --host "$HOST" --out "$OUT" --dry-run)
+echo "$plan" | sed 's/^/  /'
+calls=$(echo "$plan" | grep -o 'needed: [0-9]*' | grep -o '[0-9]*')
+echo "  estimate: ${calls} calls x ~3 s (14B model, one consumer GPU) = ~$(( calls * 3 / 60 )) min"
 
 if [ "$DRY" = 1 ]; then
   echo "(dry run: no model was called)"

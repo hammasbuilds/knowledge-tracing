@@ -24,7 +24,8 @@ from .study import (
 
 def write_json(path: Path, obj: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, default=_jsonable) + "\n", encoding="utf-8")
+    text = json.dumps(obj, indent=2, default=_jsonable) + "\n"
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def _jsonable(o):

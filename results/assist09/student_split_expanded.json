@@ -35,7 +35,7 @@
             "strength": 2.0
           },
           "val_auc": 0.6839864882868634,
-          "seconds": 0.1
+          "seconds": 0.2
         }
       ]
     },
@@ -51,7 +51,7 @@
             "slip_max": 0.3
           },
           "val_auc": 0.7148448455266202,
-          "seconds": 9.2
+          "seconds": 11.5
         }
       ]
     },
@@ -79,7 +79,7 @@
             "item_sd": 1.0
           },
           "val_auc": 0.7741267610795757,
-          "seconds": 19.6
+          "seconds": 28.8
         }
       ]
     },
@@ -93,7 +93,7 @@
             "item_sd": 2.0
           },
           "val_auc": 0.773352446306651,
-          "seconds": 23.0
+          "seconds": 29.2
         }
       ]
     },
@@ -109,7 +109,7 @@
             "lr": 0.003
           },
           "val_auc": 0.8218642517476975,
-          "seconds": 85.9,
+          "seconds": 98.2,
           "epochs_run": 14,
           "best_epoch": 11
         }
