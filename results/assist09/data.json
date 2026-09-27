@@ -1,0 +1,101 @@
+{
+  "dataset": "assist09",
+  "source": "skill_builder_data_original.csv",
+  "variants": {
+    "raw": {
+      "variant": "raw",
+      "rows": 459208,
+      "attempts": 283105,
+      "rows_per_attempt": 1.6220412921001042,
+      "students": 4163,
+      "items": 17751,
+      "skills": 123,
+      "correct_rate": 0.6903734255500775,
+      "cleaning": {
+        "raw_rows": 525534,
+        "missing_skill_rows": 66326,
+        "exact_duplicate_rows": 121207,
+        "non_binary_rows": 0,
+        "conflicting_attempts": 0,
+        "attempts_without_any_skill": 63755,
+        "attempts": 283105,
+        "multi_skill_attempts": 47037,
+        "rows": 459208
+      },
+      "adjacent_copies": {
+        "rows": 459208,
+        "repeat_rows": 176103,
+        "repeat_share": 0.3834928833992439
+      }
+    },
+    "expanded": {
+      "variant": "expanded",
+      "rows": 338001,
+      "attempts": 283105,
+      "rows_per_attempt": 1.193906854347327,
+      "students": 4163,
+      "items": 17751,
+      "skills": 123,
+      "correct_rate": 0.65325842231236,
+      "cleaning": {
+        "raw_rows": 525534,
+        "missing_skill_rows": 66326,
+        "exact_duplicate_rows": 121207,
+        "non_binary_rows": 0,
+        "conflicting_attempts": 0,
+        "attempts_without_any_skill": 63755,
+        "attempts": 283105,
+        "multi_skill_attempts": 47037,
+        "rows": 338001
+      },
+      "adjacent_copies": {
+        "rows": 338001,
+        "repeat_rows": 54896,
+        "repeat_share": 0.16241372066946547
+      }
+    },
+    "collapsed": {
+      "variant": "collapsed",
+      "rows": 283105,
+      "attempts": 283105,
+      "rows_per_attempt": 1.0,
+      "students": 4163,
+      "items": 17751,
+      "skills": 149,
+      "correct_rate": 0.6581374401723742,
+      "cleaning": {
+        "raw_rows": 525534,
+        "missing_skill_rows": 66326,
+        "exact_duplicate_rows": 121207,
+        "non_binary_rows": 0,
+        "conflicting_attempts": 0,
+        "attempts_without_any_skill": 63755,
+        "attempts": 283105,
+        "multi_skill_attempts": 47037,
+        "rows": 283105
+      },
+      "adjacent_copies": {
+        "rows": 283105,
+        "repeat_rows": 0,
+        "repeat_share": 0.0
+      }
+    }
+  },
+  "crosscheck": {
+    "official_file": "skill_builder_data_corrected_collapsed.csv",
+    "ours": {
+      "rows": 283105,
+      "students": 4163,
+      "skills": 149,
+      "items": 17751
+    },
+    "official": {
+      "rows": 283105,
+      "students": 4163,
+      "skills": 149,
+      "items": 17751
+    },
+    "same_attempt_ids": true,
+    "same_outcomes": true
+  }
+}

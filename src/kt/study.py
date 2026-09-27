@@ -24,6 +24,7 @@ from .seq import positions
 from .splits import SPLIT_NAMES, Split, split_by_row, split_by_student
 
 HORIZONS = (1, 2, 3, 5, 10)
+EARLY = 5  # "first attempts" = positions 0..EARLY-1 in the student's sequence
 
 
 @dataclass
@@ -189,6 +190,7 @@ def evaluate_row_split(
         item_sd=selected["IRT-2PL"]["item_sd"], two_pl=True, ability="fitted"
     )
     val_log = log.subset_rows(val_mask)
+    early = test_mask & (positions(log) < EARLY)
     scores = {}
     for name, m in built.items():
         _log(f"  row split: fitting {name}", verbose)
@@ -198,6 +200,9 @@ def evaluate_row_split(
             "train": score(log.correct[split.mask("train")], p[split.mask("train")]),
             "val": score(log.correct[val_mask], p[val_mask]),
             "test": score(log.correct[test_mask], p[test_mask]),
+            # a student's first attempts are where a fitted ability knows most
+            # that the history does not
+            f"test_first_{EARLY}_attempts": score(log.correct[early], p[early]),
         }
     return {
         "dataset": log.name,

@@ -116,6 +116,20 @@ def _cmd_recommend(a: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(a: argparse.Namespace) -> int:
+    from .report import build
+
+    results = Path(a.results)
+    if not results.is_dir():
+        raise DataError(f"{results} is not a directory")
+    text = build(results)
+    out = results / "SUMMARY.md"
+    out.write_text(text, encoding="utf-8")
+    print(text)
+    print(f"-> {out}")
+    return 0
+
+
 def _cmd_skills(a: argparse.Namespace) -> int:
     spec = json.loads(Path(a.model).read_text(encoding="utf-8"))
     for n in spec["skill_names"]:
@@ -248,6 +262,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--candidates", nargs="+", help="skills to choose from (default: practised ones)"
     )
     sp.set_defaults(func=_cmd_recommend)
+
+    sp = sub.add_parser("report", help="write results/SUMMARY.md from the result JSON files")
+    sp.add_argument("--results", default=str(ROOT / "results"))
+    sp.set_defaults(func=_cmd_report)
 
     sp = sub.add_parser("skills", help="list the skills a saved model knows")
     sp.add_argument("--model", default=str(ROOT / "models" / "assist09_bkt.json"))

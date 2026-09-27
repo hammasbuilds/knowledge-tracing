@@ -132,6 +132,13 @@ def run_dataset(
     selected = {fam: sel["selected"] for fam, sel in head_res["selection"].items()}
     models, parts = head_extra["models"], head_extra["parts"]
 
+    # 1b. is the ranking an accident of which 208 students landed in test?
+    for extra_seed in (seed + 1, seed + 2):
+        if verbose:
+            print(f"[{name}] student split, {COLLAPSED}, seed {extra_seed}", flush=True)
+        res, _ = _student_split_fixed(head, selected, extra_seed, quick, verbose, n_boot)
+        write_json(out_dir / f"student_split_{COLLAPSED}_seed{extra_seed}.json", res)
+
     # 2. the same models on the variants with duplicated rows
     for v in variants:
         if v == COLLAPSED:
