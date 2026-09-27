@@ -116,7 +116,9 @@ def mastery_tradeoff(
     sequence length when mastery is never declared). Score is the correct rate
     over the declared row and everything after it on that skill.
     Also reports the same numbers for the log's own stopping rule proxy,
-    three correct in a row (ASSISTments skill builders end there).
+    three correct in a row (ASSISTments skill builders end there), and for the
+    model at the threshold that declares mastery on the same share of
+    sequences as that rule.
     """
     ss = skill_seqs(log)
     y_sorted = log.correct[ss.order].astype(np.float64)
@@ -159,4 +161,15 @@ def mastery_tradeoff(
     first = np.full(ss.n, never)
     np.minimum.at(first, seq_of_sorted[done], idx_sorted[done] + 1)
     out["three_in_a_row"] = summarise(first)
+    # the same model, thresholded so it signs off as many sequences as the
+    # streak rule does: at equal coverage, whose declared mastery holds up?
+    share = out["three_in_a_row"]["declared_share"]
+    seq_max = np.full(ss.n, -np.inf)
+    np.maximum.at(seq_max, seq_of_sorted, p_sorted)
+    if 0 < share < 1:
+        tau = float(np.quantile(seq_max, 1 - share))
+        hit = p_sorted >= tau
+        first = np.full(ss.n, never)
+        np.minimum.at(first, seq_of_sorted[hit], idx_sorted[hit])
+        out["matched_to_three_in_a_row"] = {"threshold": tau, **summarise(first)}
     return out

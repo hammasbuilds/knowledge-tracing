@@ -182,11 +182,29 @@ def policy(d: Path) -> list[str]:
             f"{t['post_declaration_attempts']:,} | {'-' if rate is None else f'{rate:.3f}'} |"
         )
     t = p["mastery"]["BKT"]["three_in_a_row"]
+    streak_share = t["declared_share"]
     rate = t["post_declaration_correct_rate"]
     out.append(
         f"| three correct in a row | {t['declared_share']:.1%} | {t['mean_effort']:.2f} | "
         f"{t['post_declaration_attempts']:,} | {'-' if rate is None else f'{rate:.3f}'} |"
     )
+    out += [
+        "",
+        f"Each model thresholded to sign off the same {streak_share:.1%} of (student, skill) "
+        "sequences as three-in-a-row:",
+        "",
+        "| model | threshold | mean effort | attempts after | correct after |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for f in FAMILIES:
+        m = p["mastery"][f].get("matched_to_three_in_a_row")
+        if m is None:
+            continue
+        rate = m["post_declaration_correct_rate"]
+        out.append(
+            f"| {f} | {m['threshold']:.3f} | {m['mean_effort']:.2f} | "
+            f"{m['post_declaration_attempts']:,} | {'-' if rate is None else f'{rate:.3f}'} |"
+        )
     return out + [""]
 
 

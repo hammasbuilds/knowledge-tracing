@@ -60,3 +60,13 @@ def test_three_in_a_row_rule():
     assert out["declared_share"] == 0.5
     assert out["mean_effort"] == pytest.approx((6 + 3) / 2)
     assert out["post_declaration_attempts"] == 0
+
+
+def test_matched_threshold_declares_the_same_share_as_the_streak_rule():
+    rng = np.random.default_rng(0)
+    skills = np.repeat(np.arange(40), 8).tolist()
+    correct = rng.integers(0, 2, len(skills)).tolist()
+    log = tiny_log(skills, correct)
+    out = mastery_tradeoff(log, rng.random(len(skills)))
+    m = out["matched_to_three_in_a_row"]
+    assert abs(m["declared_share"] - out["three_in_a_row"]["declared_share"]) <= 1 / 40
