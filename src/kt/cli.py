@@ -41,6 +41,7 @@ def _cmd_study(a: argparse.Namespace) -> int:
         quick=a.quick,
         n_boot=a.n_boot,
         models_dir=Path(a.models_dir) if a.models_dir else None,
+        crosscheck=a.crosscheck,
     )
     return 0
 
@@ -230,6 +231,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--n-boot", type=int, default=1000)
     sp.add_argument("--quick", action="store_true", help="tiny grids, 3 DKT epochs: a smoke run")
+    sp.add_argument(
+        "--crosscheck",
+        help="publisher's collapsed release; checked against our own collapse of --data",
+    )
     sp.set_defaults(func=_cmd_study)
 
     sp = sub.add_parser("recommend", help="pick the next skill for a student from their history")

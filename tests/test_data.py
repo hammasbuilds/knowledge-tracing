@@ -2,9 +2,9 @@ import zipfile
 
 import numpy as np
 import pytest
+from helpers import assist_csv
 
 from kt.data import COLLAPSED, EXPANDED, RAW, DataError, load_algebra, load_assistments
-from helpers import assist_csv
 
 ROWS = [
     (1, "u1", "p10", 1, "5", "A"),

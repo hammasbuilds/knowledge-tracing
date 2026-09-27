@@ -197,6 +197,11 @@ def _open_text(path: Path, member_suffix: str) -> Iterator[str]:
             yield from fh
 
 
+def _id_key(sid: str) -> tuple[int, int, str]:
+    """Numeric ids sort numerically; composite ids such as ``1_13`` sort after."""
+    return (0, int(sid), "") if sid.isdigit() else (1, 0, sid)
+
+
 ASSIST_REQUIRED = ("order_id", "user_id", "problem_id", "skill_id", "skill_name", "correct")
 
 
@@ -206,7 +211,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
     Rows sharing an ``order_id`` are one attempt; their distinct skills form
     that attempt's skill set. Handled explicitly and counted:
 
-    * ``missing_skill_rows``: rows with an empty ``skill_id`` (dropped; an
+    * ``missing_skill_rows``: rows with an empty or ``NA`` ``skill_id`` (dropped; an
       attempt keeps its other skills if it had any).
     * ``exact_duplicate_rows``: a second row with the same ``order_id`` *and*
       skill (dropped - it carries no new information).
@@ -238,7 +243,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
         elif g["key"] != key:
             g["bad"] = True
         sid = rec["skill_id"].strip()
-        if not sid:
+        if sid in ("", "NA"):
             counts["missing_skill_rows"] += 1
             continue
         label = f"{sid}:{rec['skill_name'].strip()}"
@@ -257,7 +262,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
             no_skill += 1
             continue
         user, problem, correct = g["key"]
-        skills = tuple(g["skills"][k] for k in sorted(g["skills"], key=int))
+        skills = tuple(g["skills"][k] for k in sorted(g["skills"], key=_id_key))
         rows.append(_Row(user, problem, skills, tuple(g["raw"]), correct, oid, (oid,)))
     counts["attempts_without_any_skill"] = no_skill
     return rows, counts

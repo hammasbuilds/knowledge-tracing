@@ -32,8 +32,15 @@ def assist_file(tmp_path_factory):
 def study(assist_file, tmp_path_factory):
     out = tmp_path_factory.mktemp("results")
     models = tmp_path_factory.mktemp("models")
-    run_dataset("assist09", assist_file, out / "assist09", quick=True, n_boot=30,
-                models_dir=models, verbose=False)
+    run_dataset(
+        "assist09",
+        assist_file,
+        out / "assist09",
+        quick=True,
+        n_boot=30,
+        models_dir=models,
+        verbose=False,
+    )
     return out, models
 
 
@@ -41,9 +48,15 @@ def test_study_writes_every_result_file(study):
     out, models = study
     names = {p.name for p in (out / "assist09").iterdir()}
     assert {
-        "data.json", "student_split_collapsed.json", "student_split_expanded.json",
-        "student_split_raw.json", "row_split_collapsed.json", "horizons_collapsed.json",
-        "policy_collapsed.json", "bkt_identifiability.json", "test_predictions_collapsed.npz",
+        "data.json",
+        "student_split_collapsed.json",
+        "student_split_expanded.json",
+        "student_split_raw.json",
+        "row_split_collapsed.json",
+        "horizons_collapsed.json",
+        "policy_collapsed.json",
+        "bkt_identifiability.json",
+        "test_predictions_collapsed.npz",
     } <= names
     assert (models / "assist09_bkt.json").exists() and (models / "assist09_dkt.npz").exists()
 
@@ -72,8 +85,20 @@ def test_saved_predictions_reload_on_the_same_split(study, assist_file):
 
 def test_cli_llm_build_and_dry_run(study, assist_file, capsys):
     out, _ = study
-    rc = main(["llm", "build", "--data", str(assist_file), "--results", str(out),
-               "--out", str(out / "llm"), "-n", "25"])
+    rc = main(
+        [
+            "llm",
+            "build",
+            "--data",
+            str(assist_file),
+            "--results",
+            str(out),
+            "--out",
+            str(out / "llm"),
+            "-n",
+            "25",
+        ]
+    )
     assert rc == 0
     rc = main(["llm", "run", "--out", str(out / "llm"), "--cache", str(out / "cache"), "--dry-run"])
     assert rc == 0
@@ -83,8 +108,11 @@ def test_cli_llm_build_and_dry_run(study, assist_file, capsys):
 def test_cli_recommend(study, tmp_path, capsys):
     _, models = study
     hist = tmp_path / "h.csv"
-    hist.write_text("skill,correct\nskill 0,1\nskill 0,1\nskill 0,1\nskill 1,0\nskill 1,0\n"
-                    "skill 2,1\nskill 2,0\n", encoding="utf-8")
+    hist.write_text(
+        "skill,correct\nskill 0,1\nskill 0,1\nskill 0,1\nskill 1,0\nskill 1,0\n"
+        "skill 2,1\nskill 2,0\n",
+        encoding="utf-8",
+    )
     rc = main(["recommend", "--model", str(models / "assist09_bkt.json"), "--history", str(hist)])
     assert rc == 0
     text = capsys.readouterr().out
@@ -95,10 +123,16 @@ def test_cli_reports_bad_input_cleanly(study, tmp_path, capsys):
     _, models = study
     hist = tmp_path / "bad.csv"
     hist.write_text("skill,correct\nskill 0,yes\n", encoding="utf-8")
-    assert main(["recommend", "--model", str(models / "assist09_bkt.json"), "--history", str(hist)]) == 2
+    assert (
+        main(["recommend", "--model", str(models / "assist09_bkt.json"), "--history", str(hist)])
+        == 2
+    )
     assert "correct must be 0 or 1" in capsys.readouterr().err
     hist.write_text("skill,correct\nno such skill,1\n", encoding="utf-8")
-    assert main(["recommend", "--model", str(models / "assist09_bkt.json"), "--history", str(hist)]) == 2
+    assert (
+        main(["recommend", "--model", str(models / "assist09_bkt.json"), "--history", str(hist)])
+        == 2
+    )
     assert "unknown skill" in capsys.readouterr().err
     assert main(["inspect", "--data", str(tmp_path / "missing.csv")]) == 2
 

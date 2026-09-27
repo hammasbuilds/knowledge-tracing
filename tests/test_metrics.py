@@ -55,7 +55,9 @@ def test_bootstrap_ci_brackets_point_and_detects_a_real_difference():
     y = rng.integers(0, 2, len(groups))
     good = np.clip(y * 0.6 + rng.random(len(y)) * 0.4, 0, 1)
     noise = rng.random(len(y))
-    out = bootstrap(y, {"good": good, "noise": noise}, groups, n_boot=200, pairs=[("good", "noise")])
+    out = bootstrap(
+        y, {"good": good, "noise": noise}, groups, n_boot=200, pairs=[("good", "noise")]
+    )
     lo, hi = out["models"]["good"]["auc_ci"]
     assert lo <= auc(y, good) <= hi
     d = out["auc_diff"]["good - noise"]

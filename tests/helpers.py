@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+
 from kt.data import COLLAPSED, Log
 
 TRUE_BKT = {

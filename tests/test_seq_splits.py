@@ -27,7 +27,9 @@ def test_observed_in_seq_matches_brute_force():
             same = [
                 r
                 for r in range(len(log))
-                if log.user[r] == log.user[j] and log.skill[r] == log.skill[j] and pos[r] <= pos[j] - h
+                if log.user[r] == log.user[j]
+                and log.skill[r] == log.skill[j]
+                and pos[r] <= pos[j] - h
             ]
             assert got[j] == len(same)
     with pytest.raises(ValueError):
@@ -35,8 +37,12 @@ def test_observed_in_seq_matches_brute_force():
 
 
 def test_time_major_covers_every_row_once():
-    log = simulate_bkt({"prior": [0.3] * 3, "learn": [0.1] * 3, "guess": [0.2] * 3,
-                        "slip": [0.1] * 3}, 20, 4, seed=0)
+    log = simulate_bkt(
+        {"prior": [0.3] * 3, "learn": [0.1] * 3, "guess": [0.2] * 3, "slip": [0.1] * 3},
+        20,
+        4,
+        seed=0,
+    )
     tm = time_major(skill_seqs(log))
     assert sorted(tm.flat.tolist()) == list(range(len(log)))
     assert np.all(np.diff(tm.count) <= 0)

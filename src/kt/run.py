@@ -69,6 +69,30 @@ def adjacent_copy_rate(log: Log) -> dict:
     }
 
 
+def crosscheck_collapsed(ours: Log, official: Log, path: str | Path) -> dict:
+    """Compare our collapse of the raw file with the publisher's collapsed release."""
+    a = np.argsort(ours.attempt, kind="stable")
+    b = np.argsort(official.attempt, kind="stable")
+    same = len(ours) == len(official) and bool(np.array_equal(ours.attempt[a], official.attempt[b]))
+    return {
+        "official_file": Path(path).name,
+        "ours": {
+            "rows": len(ours),
+            "students": ours.n_users,
+            "skills": ours.n_skills,
+            "items": ours.n_items,
+        },
+        "official": {
+            "rows": len(official),
+            "students": official.n_users,
+            "skills": official.n_skills,
+            "items": official.n_items,
+        },
+        "same_attempt_ids": same,
+        "same_outcomes": same and bool(np.array_equal(ours.correct[a], official.correct[b])),
+    }
+
+
 def run_dataset(
     name: str,
     path: str | Path,
@@ -79,6 +103,7 @@ def run_dataset(
     n_boot: int = 1000,
     models_dir: Path | None = None,
     verbose: bool = True,
+    crosscheck: str | Path | None = None,
 ) -> dict:
     """Run every experiment for one dataset; returns a compact summary."""
     loader = LOADERS[name]
@@ -88,10 +113,10 @@ def run_dataset(
     data_info = {
         v: {**describe(lg), "adjacent_copies": adjacent_copy_rate(lg)} for v, lg in logs.items()
     }
-    write_json(
-        out_dir / "data.json",
-        {"dataset": name, "source": str(Path(path).name), "variants": data_info},
-    )
+    info: dict = {"dataset": name, "source": Path(path).name, "variants": data_info}
+    if crosscheck is not None:
+        info["crosscheck"] = crosscheck_collapsed(head, loader(crosscheck, COLLAPSED), crosscheck)
+    write_json(out_dir / "data.json", info)
     if verbose:
         print(
             f"[{name}] loaded {', '.join(f'{v}={len(lg)}' for v, lg in logs.items())} "

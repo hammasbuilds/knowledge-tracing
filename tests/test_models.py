@@ -113,7 +113,9 @@ def test_irt_fitted_ability_leaks_but_online_does_not():
     fitted = IRT(ability="fitted", steps=300).fit(log)
     online = IRT(steps=300).fit(log)
     first_rows = np.flatnonzero(positions(log) == 0)
-    assert np.all(online.predict(log)[first_rows] == pytest.approx(online.predict(log)[first_rows][0]))
+    assert np.all(
+        online.predict(log)[first_rows] == pytest.approx(online.predict(log)[first_rows][0])
+    )
     pf = fitted.predict(log)[first_rows]
     assert pf[0] > pf[1] + 0.3
     with pytest.raises(ValueError):
@@ -173,7 +175,9 @@ def test_lstm_gradients_match_finite_differences():
             down = lstm_chunk(p, tok, sk, y, valid, h0, c0, 3.0, grad=False)[0]
             arr[idx] = old
             num = (up - down) / 2e-6 / 3.0
-            worst = max(worst, abs(num - grads[name][idx]) / (abs(num) + abs(grads[name][idx]) + 1e-9))
+            worst = max(
+                worst, abs(num - grads[name][idx]) / (abs(num) + abs(grads[name][idx]) + 1e-9)
+            )
     assert worst < 1e-5
 
 

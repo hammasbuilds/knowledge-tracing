@@ -63,7 +63,7 @@ class BKT:
     """Per-skill BKT. Skills unseen in training fall back to pooled parameters."""
 
     bounds: BKTBounds = field(default_factory=BKTBounds)
-    max_iter: int = 100
+    max_iter: int = 500
     tol: float = 1e-7
     name: str = "BKT"
     params: dict[str, np.ndarray] = field(default_factory=dict)
@@ -81,6 +81,7 @@ class BKT:
         max_len = len(tm.count)
         prev_ll = -np.inf
         ll = -np.inf
+        converged = False
         it = 0
         for it in range(1, self.max_iter + 1):
             gs = group_of_seq[sorted_seq]  # group per active slot, prefix-aligned
@@ -104,7 +105,7 @@ class BKT:
                 alpha[sl] = num / z
                 scale[sl] = z
             ll = float(np.log(scale).sum())
-            # backward: beta_k, beta_u (scaled by the same z)
+            # backward: beta_k, beta_u, renormalised every step
             post_k = np.empty(len(tm.flat))
             xi_ul = np.zeros(len(tm.flat))  # expected unknown->known transitions into t
             bk = np.ones(tm.count[max_len - 1]) if max_len else np.ones(0)
@@ -121,14 +122,22 @@ class BKT:
                     sl1 = tm.step(t + 1)
                     g1 = gs[:n_next]
                     ek1, eu1 = _emit(correct[tm.flat[sl1]], p["guess"][g1], p["slip"][g1])
-                    z1 = scale[sl1]
                     lr = p["learn"][g1]
-                    wk = ek1 * bk / z1  # emission * beta at t+1, known
-                    wu = eu1 * bu / z1
+                    wk = ek1 * bk  # emission * beta at t+1, known
+                    wu = eu1 * bu
+                    an = a[:n_next]
+                    # the four transition posteriors, normalised directly, so the
+                    # arbitrary per-step scale of beta cancels (K->U is impossible)
+                    kk = an * wk
+                    uk = (1 - an) * lr * wk
+                    uu = (1 - an) * (1 - lr) * wu
+                    xi_ul[sl1] = uk / (kk + uk + uu)
                     nb_k[:n_next] = wk
                     nb_u[:n_next] = lr * wk + (1 - lr) * wu
-                    xi_ul[sl1] = (1 - a[:n_next]) * lr * wk
-                    bk, bu = nb_k, nb_u
+                    # rescale beta to sum to one: a state whose posterior is ~0
+                    # would otherwise let the other state's beta overflow
+                    tot = nb_k + nb_u
+                    bk, bu = nb_k / tot, nb_u / tot
                 else:
                     bk = np.ones(n)
                     bu = np.ones(n)
@@ -153,9 +162,10 @@ class BKT:
             }
             p = self.bounds.clip(new)
             if ll - prev_ll < self.tol * max(1.0, abs(ll)) and it > 1:
+                converged = True
                 break
             prev_ll = ll
-        return {"params": p, "loglik": ll, "iterations": it}
+        return {"params": p, "loglik": ll, "iterations": it, "converged": converged}
 
     def fit(self, train: Log, val: Log | None = None) -> BKT:
         ss = skill_seqs(train)
@@ -169,6 +179,7 @@ class BKT:
         self.fit_info = {
             "loglik": per["loglik"],
             "iterations": per["iterations"],
+            "converged": per["converged"],
             "skills_fitted": int(seen.sum()),
             "at_guess_bound": int(np.sum(np.isclose(g, self.bounds.guess_max))),
             "at_slip_bound": int(np.sum(np.isclose(s, self.bounds.slip_max))),

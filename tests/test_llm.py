@@ -69,8 +69,11 @@ def test_cache_prevents_repeat_calls_and_keys_on_model_and_options(tmp_path):
 def _log():
     rng = np.random.default_rng(0)
     users = np.repeat(np.arange(12), 15)
-    return tiny_log(rng.integers(0, 3, len(users)).tolist(), rng.integers(0, 2, len(users)).tolist(),
-                    users.tolist())
+    return tiny_log(
+        rng.integers(0, 3, len(users)).tolist(),
+        rng.integers(0, 2, len(users)).tolist(),
+        users.tolist(),
+    )
 
 
 def test_sample_jobs_prompt_holds_only_the_past():
