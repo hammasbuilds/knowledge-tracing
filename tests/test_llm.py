@@ -37,6 +37,10 @@ def test_prompt_lists_history_in_order_and_truncates():
         ('{"p_correct": "0.4"}', 0.4),
         ("p_correct: 63%", 0.63),
         ('{"p_correct": 80}', 0.8),
+        ('{"p_correct": 1.5}', None),  # was read as 1.5% = 0.015
+        ('{"p_correct": 1}', 1.0),
+        ('{"p_correct": 50.5}', None),
+        ("p_correct: 150%", None),
         ("I think 0.25", 0.25),
         ('{"p_correct": 1.7e3}', None),
         ("between 0.2 and 0.4", None),

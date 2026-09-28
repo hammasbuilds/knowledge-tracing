@@ -64,14 +64,20 @@ _BARE = re.compile(r"(?<![0-9.])([01](?:\.[0-9]+)?|\.[0-9]+)(?![0-9.])")
 def parse_probability(text: str) -> float | None:
     """Pull a probability out of a model reply; None when there is none.
 
-    Accepts the requested JSON, a percentage (``"p_correct": 63%``), or a lone
-    number in [0, 1]. Anything outside [0, 1] is rejected rather than clipped.
+    Accepts the requested JSON, a percentage (``"p_correct": 63%``), a whole
+    number from 2 to 100 read as a percentage (``"p_correct": 80``), or a lone
+    number in [0, 1]. Anything else - including a decimal above 1 such as
+    ``1.5``, which is neither a probability nor a plausible percentage - is
+    rejected rather than clipped or rescaled.
     """
     m = _NUM.search(text)
     if m:
-        v = float(m.group(1))
-        if m.group(2) == "%" or v > 1:
-            v = v / 100 if v <= 100 else float("nan")
+        literal, v = m.group(1), float(m.group(1))
+        if m.group(2) == "%":
+            v /= 100
+        elif v > 1:
+            whole = literal.isdigit() and 2 <= v <= 100
+            v = v / 100 if whole else float("nan")
         return v if 0.0 <= v <= 1.0 else None
     bare = _BARE.findall(text)
     if len(bare) == 1:
@@ -277,12 +283,17 @@ def describe_sample(jobs: list[dict], test: Log, n_boot: int = 1000, seed: int =
     groups = np.unique([j["student"] for j in jobs], return_inverse=True)[1]
     pos = positions(test)
     eligible = pos >= min(j["position"] for j in jobs)
+    # the sample takes at most a couple of rows per student, so it weights students
+    # equally rather than attempts: compare it with the per-student mean as well
+    users = np.unique(test.user[eligible])
+    per_student = [test.correct[eligible & (test.user == u)].mean() for u in users]
     return {
         "n": len(jobs),
         "students": int(groups.max() + 1),
         "sample_correct_rate": float(y.mean()),
         "test_correct_rate": float(test.correct.mean()),
         "eligible_test_correct_rate": float(test.correct[eligible].mean()),
+        "eligible_test_correct_rate_per_student": float(np.mean(per_student)),
         "mean_position": float(np.mean([j["position"] for j in jobs])),
         "classical_on_sample": {k: score(y, p) for k, p in preds.items()},
         "bootstrap": bootstrap(y, preds, groups, n_boot, seed),
