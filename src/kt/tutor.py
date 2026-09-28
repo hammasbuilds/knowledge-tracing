@@ -193,6 +193,8 @@ def plan_next(
     """
     if not 0 < mastery <= 1:
         raise ValueError("mastery must be in (0, 1]")
+    if not 0 < target < 1:
+        raise ValueError("target must be in (0, 1): it is a predicted P(correct)")
     table = tm.status(history)
     by_name = {s.skill: s for s in table}
     if candidates:

@@ -9,7 +9,7 @@ from kt.data import COLLAPSED, EXPANDED, RAW, DataError, load_algebra, load_assi
 ROWS = [
     (1, "u1", "p10", 1, "5", "A"),
     (1, "u1", "p10", 1, "7", "B"),  # multi-skill attempt
-    (1, "u1", "p10", 1, "5", "A"),  # exact duplicate record
+    (1, "u1", "p10", 1, "5", "A"),  # repeated (order_id, skill) record
     (2, "u1", "p11", 0, "", ""),  # no skill at all
     (3, "u1", "p12", 0, "5", "A"),
     (4, "u2", "p10", 1, "7", "B"),

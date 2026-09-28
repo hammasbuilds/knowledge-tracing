@@ -164,6 +164,8 @@ def test_cli_errors_are_clean(tmp_path, capsys):
     assert "DKT" in capsys.readouterr().err
     assert main(["recommend", "--history", str(h), "--mastery", "1.5"]) == 2
     assert "mastery" in capsys.readouterr().err
+    assert main(["recommend", "--history", str(h), "--target", "1.5"]) == 2
+    assert "target must be in (0, 1)" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("args", "kind"), [([], "BKT"), (["--model", "irt"], "IRT")])

@@ -71,15 +71,18 @@ def seeds(d: Path) -> list[str]:
     out = [
         f"### {runs[0]['dataset']}: test AUC on {len(runs)} different student splits",
         "",
-        "| model | " + " | ".join(f"seed {r['split']['seed']}" for r in runs) + " |",
-        "|---|" + "---:|" * len(runs),
+        "| model | "
+        + " | ".join(f"seed {r['split']['seed']}" for r in runs)
+        + " | mean (range) |",
+        "|---|" + "---:|" * (len(runs) + 1),
     ]
     for f in FAMILIES:
         cells = []
         for r in runs:
             ci = r["bootstrap_test"]["models"][f]["auc_ci"]
             cells.append(f"{r['scores'][f]['test']['auc']:.3f} {_ci(ci)}")
-        out.append(f"| {f} | " + " | ".join(cells) + " |")
+        aucs = [r["scores"][f]["test"]["auc"] for r in runs]
+        out.append(f"| {f} | " + " | ".join(cells) + f" | {_mean_range(aucs)} |")
     return out + [""]
 
 
@@ -215,6 +218,14 @@ def duplicate_detail(d: Path, variants: list[str]) -> list[str]:
             aucs = [r["scores"]["DKT"]["test"]["auc"] for r in runs]
             cells = [f"{a:.3f}" for a in aucs]
             out.append(f"| {v}, DKT | " + " | ".join(cells) + f" | {_mean_range(aucs)} |")
+            if all("scores_first_row_of_attempt" in r for r in runs):
+                once = [r["scores_first_row_of_attempt"]["DKT"]["auc"] for r in runs]
+                cells = [f"{a:.3f}" for a in once]
+                out.append(
+                    f"| {v}, DKT scored once per attempt | "
+                    + " | ".join(cells)
+                    + f" | {_mean_range(once)} |"
+                )
             for other in ("BKT", "IRT-1PL"):
                 cells, pts = [], []
                 for r in runs:

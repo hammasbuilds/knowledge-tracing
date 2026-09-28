@@ -53,7 +53,8 @@ def _cmd_recommend(a: argparse.Namespace) -> int:
     history = read_history(Path(a.history))
     plan = plan_next(tm, history, a.target, a.mastery, a.candidates)
     print(f"model: {tm.kind.upper()} ({tm.source}); mastery = {tm.mastery_label} >= {a.mastery}")
-    print(f"history: {len(history)} attempts over {len({s for s, _ in history})} skills")
+    n, k = len(history), len({s for s, _ in history})
+    print(f"history: {n} attempt{'s' * (n != 1)} over {k} skill{'s' * (k != 1)}")
     label = tm.mastery_label if tm.kind == "bkt" else ""
     print(f"{'P(correct)':>10}  {label:>8}  skill")
     for st in sorted(plan.table, key=lambda r: r.p_correct):
