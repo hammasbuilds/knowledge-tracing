@@ -82,6 +82,9 @@ def test_study_numbers_are_sane(study):
         json.loads((out / "assist09" / "data.json").read_text())["duplicates"]["repeated_groups"]
         > 0
     )
+    # the skill-level IRT that `kt recommend --model irt` runs is scored on every split
+    sk = res["irt_skill_level"]
+    assert set(sk) == {"train", "val", "test"} and all(0.4 < sk[p]["auc"] <= 1 for p in sk)
 
 
 def test_saved_predictions_reload_on_the_same_split(study, assist_file):
@@ -108,6 +111,8 @@ def test_cli_llm_build_and_dry_run(study, assist_file, capsys):
         ]
     )
     assert rc == 0
+    info = json.loads((out / "llm" / "llm_sample.json").read_text(encoding="utf-8"))
+    assert 0 <= info["eligible_test_correct_rate_per_student"] <= 1
     rc = main(["llm", "run", "--out", str(out / "llm"), "--cache", str(out / "cache"), "--dry-run"])
     assert rc == 0
     assert "model calls needed: 25" in capsys.readouterr().out
@@ -145,6 +150,26 @@ def test_cli_reports_bad_input_cleanly(study, tmp_path, capsys):
     assert main(["inspect", "--data", str(tmp_path / "missing.csv")]) == 2
 
 
+def test_study_variant_error_comes_after_the_data_check(assist_file, tmp_path, capsys):
+    missing = str(tmp_path / "missing.csv")
+    assert main(["study", "--data", missing, "--variant", "raw"]) == 2
+    assert "does not exist" in capsys.readouterr().err
+    assert main(["study", "--data", str(assist_file), "--variant", "raw"]) == 2
+    assert capsys.readouterr().err.startswith("error: --variant must include 'collapsed'")
+
+
+def test_quick_study_does_not_overwrite_the_packaged_models(assist_file, monkeypatch):
+    import kt.run
+    from kt.tutor import PRETRAINED
+
+    seen = {}
+    monkeypatch.setattr(kt.run, "run_dataset", lambda *a, **k: seen.update(k))
+    assert main(["study", "--data", str(assist_file), "--quick"]) == 0
+    assert seen["models_dir"] is None
+    assert main(["study", "--data", str(assist_file)]) == 0
+    assert seen["models_dir"] == PRETRAINED
+
+
 def test_cli_help_exits_cleanly():
     with pytest.raises(SystemExit) as e:
         main(["--help"])
@@ -176,6 +201,9 @@ def test_report_builds_every_table(study, capsys):
         "those students removed",
         "on three student splits",
         "Validation AUC next to test AUC",
+        "mean (range)",
+        "per split seed",
+        "as saved for `kt recommend --model irt`",
     ):
         assert heading in text, heading
     assert main(["report", "--results", str(out / "nope")]) == 2

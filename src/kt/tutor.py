@@ -3,13 +3,20 @@ say how well each skill is known, and pick the next one.
 
 Two saved models can drive it:
 
-* **IRT** (default): ``P(correct)`` from an ability re-estimated on the student's
-  own history. The best-ranked and best-calibrated model in the study. Mastery
+* **BKT** (default): one hidden-Markov model per skill, so a skill's estimate
+  moves only with answers on that skill. Mastery is judged on ``P(known)``,
+  the latent state, never on ``P(correct)``: BKT's P(correct) is capped at
+  ``1 - slip`` (0.70 for skills whose slip sits at the 0.3 bound), so a
+  P(correct) threshold of 0.95 would be unreachable for most skills and a
+  mastered skill would stay in rotation. The packaged file is exactly the BKT
+  the study scores (``results/assist09/student_split_collapsed.json``).
+* **IRT**: a *skill-level* 1PL. A history names skills, not problems, so the
+  item offsets of the study's item-level IRT cannot be used and are not saved;
+  this weaker model is scored separately in the study (``irt_skill_level``).
+  It has a single ability shared by every skill, so it ignores which skill
+  the evidence came from: eight right answers on an easy skill can leave that
+  skill ranked below a hard skill the student has failed six times. Mastery
   is judged on ``P(correct)``.
-* **BKT**: mastery is judged on ``P(known)``, the latent state, never on
-  ``P(correct)``: BKT's P(correct) is capped at ``1 - slip`` (0.70 for skills
-  whose slip sits at the 0.3 bound), so a P(correct) threshold of 0.95 would
-  be unreachable for most skills and a mastered skill would stay in rotation.
 
 DKT is not offered here: it reads the history as a sequence of (skill,
 correct) tokens and has no per-skill state to report or threshold.
@@ -20,7 +27,6 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import dataclass
-from importlib import resources
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +36,10 @@ from .models.bkt import BKT
 from .models.irt import GRID, IRT
 from .policy import recommend
 
-BUILTIN = {"irt": "assist09_irt.json", "bkt": "assist09_bkt.json"}
+BUILTIN = {"bkt": "assist09_bkt.json", "irt": "assist09_irt.json"}
+DEFAULT_MODEL = "bkt"
+PRETRAINED = Path(__file__).resolve().parent / "pretrained"
+"""The one place fitted models live: `kt study` writes here, `kt recommend` reads here."""
 
 
 @dataclass
@@ -48,13 +57,16 @@ class TutorModel:
     model: BKT | IRT
     skill_names: list[str]
     source: str
+    spec: str = DEFAULT_MODEL  # what the user passed to --model, for error hints
 
     @property
     def mastery_label(self) -> str:
         return "P(known)" if self.kind == "bkt" else "P(correct)"
 
     def status(self, history: list[tuple[str, int]]) -> list[SkillStatus]:
-        ids = np.array([resolve_skill(s, self.skill_names) for s, _ in history], dtype=np.int64)
+        ids = np.array(
+            [resolve_skill(s, self.skill_names, self.spec) for s, _ in history], dtype=np.int64
+        )
         correct = np.array([c for _, c in history], dtype=np.int8)
         targets = np.arange(len(self.skill_names))
         if self.kind == "bkt":
@@ -75,15 +87,15 @@ class TutorModel:
 
 
 def load_model(spec: str) -> TutorModel:
-    """``spec`` is ``irt`` / ``bkt`` (the packaged ASSISTments 2009 models) or a
+    """``spec`` is ``bkt`` / ``irt`` (the packaged ASSISTments 2009 models) or a
     path to a JSON file written by ``kt study``."""
     if spec in BUILTIN:
-        ref = resources.files("kt") / "pretrained" / BUILTIN[spec]
+        ref = PRETRAINED / BUILTIN[spec]
         text, source = ref.read_text(encoding="utf-8"), f"packaged {BUILTIN[spec]}"
     else:
         path = Path(spec)
         if not path.exists():
-            raise DataError(f"model {spec!r} not found: use 'irt', 'bkt' or a JSON path")
+            raise DataError(f"model {spec!r} not found: use 'bkt', 'irt' or a JSON path")
         if path.suffix.lower() == ".npz":
             raise DataError(
                 f"{path} is a DKT model; recommend needs a BKT or IRT JSON (it reports a "
@@ -108,7 +120,7 @@ def load_model(spec: str) -> TutorModel:
         model = IRT.from_json(d)
     else:
         raise DataError(f"{source}: unsupported model {kind!r} (bkt or irt)")
-    return TutorModel(kind, model, names, source)
+    return TutorModel(kind, model, names, source, spec)
 
 
 def read_history(path: Path) -> list[tuple[str, int]]:
@@ -142,8 +154,10 @@ def read_history(path: Path) -> list[tuple[str, int]]:
     return out
 
 
-def resolve_skill(query: str, names: list[str]) -> int:
-    """Match a skill by exact name, by its id prefix (``311``), or by its label."""
+def resolve_skill(query: str, names: list[str], model_spec: str = DEFAULT_MODEL) -> int:
+    """Match a skill by exact name, by its id prefix (``311``), or by its label.
+
+    ``model_spec`` is only used to name the right ``kt skills`` command in the error."""
     for i, n in enumerate(names):
         if query == n or query == n.split(":", 1)[0] or query == n.split(":", 1)[-1]:
             return i
@@ -151,7 +165,8 @@ def resolve_skill(query: str, names: list[str]) -> int:
     if len(lowered) == 1:
         return lowered[0]
     hint = f"; {len(lowered)} names contain it" if lowered else ""
-    raise DataError(f"unknown skill {query!r}{hint}. Run `kt skills` to list them.")
+    listing = "kt skills" if model_spec == DEFAULT_MODEL else f"kt skills --model {model_spec}"
+    raise DataError(f"unknown skill {query!r}{hint}. Run `{listing}` to list them.")
 
 
 @dataclass
@@ -181,7 +196,7 @@ def plan_next(
     table = tm.status(history)
     by_name = {s.skill: s for s in table}
     if candidates:
-        pool = [tm.skill_names[resolve_skill(c, tm.skill_names)] for c in candidates]
+        pool = [tm.skill_names[resolve_skill(c, tm.skill_names, tm.spec)] for c in candidates]
     else:
         pool = [s.skill for s in table if s.practised] or list(by_name)
     rows = [by_name[n] for n in dict.fromkeys(pool)]

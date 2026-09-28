@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .data import COLLAPSED, LOADERS, VARIANTS, DataError
 from .llm import LLMError
-from .tutor import load_model, plan_next, read_history
+from .tutor import DEFAULT_MODEL, PRETRAINED, load_model, plan_next, read_history
 
 
 def _cmd_inspect(a: argparse.Namespace) -> int:
@@ -24,9 +24,16 @@ def _cmd_inspect(a: argparse.Namespace) -> int:
 def _cmd_study(a: argparse.Namespace) -> int:
     from .run import run_dataset
 
+    if not Path(a.data).exists():
+        raise DataError(f"{a.data} does not exist: scripts/fetch_data.sh downloads the datasets")
     variants = tuple(a.variant) if a.variant else VARIANTS
     if COLLAPSED not in variants:
-        raise SystemExit("--variant must include 'collapsed' (the headline variant)")
+        raise DataError("--variant must include 'collapsed' (the headline variant)")
+    if a.models_dir:
+        models_dir: Path | None = Path(a.models_dir)
+    else:
+        # a --quick smoke run must not overwrite the models `kt recommend` ships with
+        models_dir = None if a.quick else PRETRAINED
     run_dataset(
         a.dataset,
         a.data,
@@ -35,7 +42,7 @@ def _cmd_study(a: argparse.Namespace) -> int:
         seed=a.seed,
         quick=a.quick,
         n_boot=a.n_boot,
-        models_dir=Path(a.models_dir) if a.models_dir else None,
+        models_dir=models_dir,
         crosscheck=a.crosscheck,
     )
     return 0
@@ -161,7 +168,8 @@ def _cmd_llm_score(a: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    from .llm import DEFAULT_HOST, DEFAULT_MODEL
+    from .llm import DEFAULT_HOST
+    from .llm import DEFAULT_MODEL as LLM_MODEL
 
     p = argparse.ArgumentParser(
         prog="kt",
@@ -188,7 +196,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--variant", action="append", choices=VARIANTS, help="repeatable; default all")
     sp.add_argument("--out", default="results")
     sp.add_argument(
-        "--models-dir", default="models", help="where to save the fitted BKT, IRT and DKT"
+        "--models-dir",
+        help="where to save the fitted BKT, IRT and DKT (default: the package's pretrained/ "
+        "directory, which `kt recommend` reads; --quick saves nothing unless this is given)",
     )
     sp.add_argument("--seed", type=int, default=0)
     sp.add_argument("--n-boot", type=int, default=1000)
@@ -201,10 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("recommend", help="pick the next skill for a student from their history")
     model_help = (
-        "'irt' (default) or 'bkt' for the packaged ASSISTments 2009 models, "
-        "or a model JSON written by `kt study`"
+        "'bkt' (default: per-skill) or 'irt' (skill-level, one shared ability) for the "
+        "packaged ASSISTments 2009 models, or a model JSON written by `kt study`"
     )
-    sp.add_argument("--model", default="irt", help=model_help)
+    sp.add_argument("--model", default=DEFAULT_MODEL, help=model_help)
     sp.add_argument(
         "--history", required=True, help="CSV with columns skill,correct (oldest first)"
     )
@@ -225,7 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=_cmd_report)
 
     sp = sub.add_parser("skills", help="list the skills a saved model knows")
-    sp.add_argument("--model", default="irt", help=model_help)
+    sp.add_argument("--model", default=DEFAULT_MODEL, help=model_help)
     sp.set_defaults(func=_cmd_skills)
 
     llm = sub.add_parser("llm", help="the LLM arm (build jobs, run them, score them)")
@@ -233,7 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def llm_args(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--out", default="results/assist09")
-        sp.add_argument("--model", default=DEFAULT_MODEL)
+        sp.add_argument("--model", default=LLM_MODEL)
 
     sp = lsub.add_parser(
         "build", help="sample test rows and freeze prompts + classical predictions"

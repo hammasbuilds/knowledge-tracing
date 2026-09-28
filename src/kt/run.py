@@ -60,8 +60,8 @@ def adjacent_copy_rate(log: Log) -> dict:
 
     Those rows are answered by the row before them: their outcome is identical
     by construction. A sequence model can learn to copy it; a per-skill model
-    cannot, because the copy carries a different skill tag (or, for exact
-    duplicates, the same one).
+    cannot, because the copy carries a different skill tag (or, for a repeated
+    (order_id, skill) record, the same one).
     """
     first = log.first_row_of_attempt()
     repeat = ~first

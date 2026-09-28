@@ -154,9 +154,19 @@ class IRT:
             axis=1
         )
 
+    def skill_level(self) -> IRT:
+        """This model with its item offsets dropped: every item gets its skill's
+        difficulty. It is what :meth:`to_json` saves and what the tutor runs
+        (a history names skills, not items), so the study scores it separately
+        from the item-level model."""
+        m = IRT(two_pl=self.two_pl, item_sd=self.item_sd, name=f"{self.name} (skill-level)")
+        m.beta, m.log_a = self.beta.copy(), self.log_a.copy()
+        return m
+
     def to_json(self) -> dict:
-        """Skill-level parameters only: item offsets and training abilities are not
-        needed to predict a new student on a new item, and are left out."""
+        """The skill-level model only (see :meth:`skill_level`): item offsets and
+        training abilities are left out. It is a weaker model than the item-level
+        IRT the study headlines, and is scored on its own as ``irt_skill_level``."""
         return {
             "model": "irt",
             "two_pl": self.two_pl,

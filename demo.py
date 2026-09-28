@@ -3,8 +3,9 @@
 1. Students are simulated from BKT parameters we choose; EM has to recover them.
 2. The no-peeking contract: flipping a student's *future* answers must not
    change any model's prediction for the present.
-3. The IRT and BKT fitted on ASSISTments 2009 (packaged with the library)
-   read a short answer history and pick the next exercise.
+3. The BKT (the default) and the skill-level IRT fitted on ASSISTments 2009
+   (packaged with the library) read a short answer history and pick the next
+   exercise.
 
 Runs in a few seconds from a clean clone; no dataset download needed.
 """
@@ -79,10 +80,11 @@ def part3() -> None:
     ]
     for skill, c in history:
         print(f"   {'correct  ' if c else 'incorrect'}  {skill}")
-    for kind in ("irt", "bkt"):
+    labels = {"bkt": "default, one model per skill", "irt": "skill-level, one shared ability"}
+    for kind in ("bkt", "irt"):
         tm = load_model(kind)
         plan = plan_next(tm, history, target=0.7, mastery=0.95)
-        print(f"   {kind.upper()} (mastery judged on {tm.mastery_label}):")
+        print(f"   {kind.upper()} ({labels[kind]}; mastery judged on {tm.mastery_label}):")
         for st in sorted(plan.table, key=lambda r: r.p_correct):
             extra = f", P(known) {st.mastery_value:.3f}" if kind == "bkt" else ""
             print(f"     P(correct next) {st.p_correct:.3f}{extra}  {st.skill.split(':', 1)[1]}")

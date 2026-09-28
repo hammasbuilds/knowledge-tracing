@@ -25,7 +25,7 @@ from .data import RAW, DataError, Log
 from .splits import SPLIT_NAMES, Split
 
 
-def exact_duplicate_mask(log: Log) -> np.ndarray:
+def repeated_record_mask(log: Log) -> np.ndarray:
     """True on every row whose (attempt, skill) occurs more than once."""
     key = log.attempt.astype(np.int64) * (log.n_skills + 1) + log.skill
     _, inv, cnt = np.unique(key, return_inverse=True, return_counts=True)
@@ -69,7 +69,7 @@ def duplicate_structure(raw: Log) -> dict:
 def split_concentration(raw: Log, split: Split) -> dict:
     """Per split: rows per attempt, and how much of it is owned by the students
     who have repeated records."""
-    dup = exact_duplicate_mask(raw)
+    dup = repeated_record_mask(raw)
     owners = np.unique(raw.user[dup])
     out = {}
     for name in SPLIT_NAMES:

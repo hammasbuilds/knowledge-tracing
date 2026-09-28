@@ -9,7 +9,7 @@ from kt.cli import main
 from kt.data import DataError
 from kt.models.bkt import BKT
 from kt.models.irt import IRT
-from kt.tutor import TutorModel, load_model, plan_next, read_history
+from kt.tutor import DEFAULT_MODEL, TutorModel, load_model, plan_next, read_history
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = ["1:Adding", "2:Fractions", "3:Angles"]
@@ -126,12 +126,31 @@ def test_load_model_rejects_wrong_files_cleanly(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["irt", "bkt"])
-def test_packaged_models_load_and_match_the_committed_ones(kind):
+def test_packaged_models_load_from_the_one_models_directory(kind):
     tm = load_model(kind)
     assert tm.kind == kind and len(tm.skill_names) == 149
-    packaged = (ROOT / "src" / "kt" / "pretrained" / f"assist09_{kind}.json").read_text("utf-8")
-    committed = (ROOT / "models" / f"assist09_{kind}.json").read_text("utf-8")
-    assert json.loads(packaged) == json.loads(committed)
+    assert (ROOT / "src" / "kt" / "pretrained" / f"assist09_{kind}.json").exists()
+    assert not (ROOT / "models").exists()  # no second copy to drift out of date
+
+
+VENN_VS_AREA = [("Venn Diagram", 1)] * 8 + [("Area Rectangle", 0)] * 6
+
+
+def test_default_model_is_per_skill_bkt_and_ranks_evidence_per_skill():
+    """Regression: the packaged skill-level IRT ranked a skill answered 8/8 right
+    below one answered 0/6, because its single ability ignores which skill the
+    evidence came from. The default must be the per-skill BKT."""
+    tm = load_model(DEFAULT_MODEL)
+    assert tm.kind == "bkt"
+    st = {s.skill.split(":", 1)[1]: s for s in tm.status(VENN_VS_AREA)}
+    assert st["Venn Diagram"].p_correct > st["Area Rectangle"].p_correct
+    assert st["Venn Diagram"].mastery_value > st["Area Rectangle"].mastery_value
+
+
+def test_packaged_irt_ignores_which_skill_the_evidence_came_from():
+    """The documented limitation of the IRT option, pinned so the docstring stays true."""
+    st = {s.skill.split(":", 1)[1]: s for s in load_model("irt").status(VENN_VS_AREA)}
+    assert st["Venn Diagram"].p_correct < st["Area Rectangle"].p_correct
 
 
 def test_cli_errors_are_clean(tmp_path, capsys):
@@ -147,11 +166,21 @@ def test_cli_errors_are_clean(tmp_path, capsys):
     assert "mastery" in capsys.readouterr().err
 
 
-def test_cli_recommend_with_packaged_irt(tmp_path, capsys):
+@pytest.mark.parametrize(("args", "kind"), [([], "BKT"), (["--model", "irt"], "IRT")])
+def test_cli_recommend_with_packaged_models(tmp_path, capsys, args, kind):
     h = tmp_path / "h.csv"
     h.write_bytes(
         "\ufeffSKILL,Correct\nVenn Diagram,1\nVenn Diagram,1\nArea Rectangle,0\n".encode()
     )
-    assert main(["recommend", "--history", str(h)]) == 0
+    assert main(["recommend", "--history", str(h), *args]) == 0
     out = capsys.readouterr().out
-    assert "model: IRT" in out and "next exercise:" in out
+    assert f"model: {kind}" in out and "next exercise:" in out
+
+
+def test_unknown_skill_hint_names_the_model_in_use(tmp_path, capsys):
+    h = tmp_path / "h.csv"
+    h.write_text("skill,correct\nNo Such Skill,1\n", encoding="utf-8")
+    assert main(["recommend", "--history", str(h)]) == 2
+    assert "Run `kt skills` to list them" in capsys.readouterr().err
+    assert main(["recommend", "--model", "irt", "--history", str(h)]) == 2
+    assert "Run `kt skills --model irt` to list them" in capsys.readouterr().err

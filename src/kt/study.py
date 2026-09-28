@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .audit import exact_duplicate_mask, split_concentration
+from .audit import repeated_record_mask, split_concentration
 from .data import Log
 from .metrics import auc, bootstrap, calibration, score
 from .models.baseline import ItemMean
@@ -156,12 +156,17 @@ def evaluate_student_split(
             seed,
             pairs,
         )
-    dup = exact_duplicate_mask(log)
-    if dup.any() and (keep_any := ~np.isin(test.user, np.unique(log.user[dup]))).any():
+    if "IRT-1PL" in models:
+        # the saved IRT (and so the tutor's) has no item offsets: score that one too
+        packaged = models["IRT-1PL"].skill_level()
+        out["irt_skill_level"] = {
+            name: score(part.correct, packaged.predict(part)) for name, part in parts.items()
+        }
+    owners = np.unique(log.user[repeated_record_mask(log)])
+    keep = ~np.isin(test.user, owners)
+    if len(owners) and keep.any():
         # how much of the result is carried by the few students with repeated records?
         # (skipped when every test student has them - nothing would be left to score)
-        owners = np.unique(log.user[dup])
-        keep = keep_any
         out["repeated_records"] = {
             "concentration": split_concentration(log, split),
             "test_students_excluded": int(len(np.intersect1d(np.unique(test.user), owners))),

@@ -42,10 +42,24 @@ def headline(d: Path) -> list[str]:
             f"{s['test']['auc']:.3f} | {_ci(boot['models'][fam]['auc_ci'])} | "
             f"{s['test']['rmse']:.3f} | {s['test']['ece']:.3f} |"
         )
+    sk = res.get("irt_skill_level")
+    if sk:
+        out += [
+            "",
+            "IRT-1PL as saved for `kt recommend --model irt` (item offsets dropped, every item "
+            f"at its skill's difficulty): train / val / test AUC {sk['train']['auc']:.3f} / "
+            f"{sk['val']['auc']:.3f} / {sk['test']['auc']:.3f}, test RMSE "
+            f"{sk['test']['rmse']:.3f}, test ECE {sk['test']['ece']:.3f}.",
+        ]
     out += ["", "| paired test AUC difference | point | 95% CI |", "|---|---:|---|"]
     for k, v in boot["auc_diff"].items():
         out.append(f"| {k} | {v['point']:+.3f} | {_ci(v['ci'])} |")
     return out + [""]
+
+
+def _mean_range(xs: list[float], signed: bool = False) -> str:
+    f = "+.3f" if signed else ".3f"
+    return f"{sum(xs) / len(xs):{f}} ({min(xs):{f}} to {max(xs):{f}})"
 
 
 def seeds(d: Path) -> list[str]:
@@ -191,20 +205,74 @@ def duplicate_detail(d: Path, variants: list[str]) -> list[str]:
             seeds.append((v, runs))
     if seeds:
         out += [
-            "DKT - BKT and DKT - IRT-1PL test AUC on three student splits:",
+            "DKT test AUC, and DKT - BKT and DKT - IRT-1PL, on three student splits "
+            "(mean and range over the seeds):",
             "",
-            "| rows are | seed 0 | seed 1 | seed 2 |",
-            "|---|---|---|---|",
+            "| rows are | seed 0 | seed 1 | seed 2 | mean (range) |",
+            "|---|---|---|---|---|",
         ]
         for v, runs in seeds:
+            aucs = [r["scores"]["DKT"]["test"]["auc"] for r in runs]
+            cells = [f"{a:.3f}" for a in aucs]
+            out.append(f"| {v}, DKT | " + " | ".join(cells) + f" | {_mean_range(aucs)} |")
             for other in ("BKT", "IRT-1PL"):
-                cells = []
+                cells, pts = [], []
                 for r in runs:
                     dd = r["bootstrap_test"]["auc_diff"][f"DKT - {other}"]
                     cells.append(f"{dd['point']:+.3f} {_ci(dd['ci'])}")
-                out.append(f"| {v}, DKT - {other} | " + " | ".join(cells) + " |")
+                    pts.append(dd["point"])
+                out.append(
+                    f"| {v}, DKT - {other} | "
+                    + " | ".join(cells)
+                    + f" | {_mean_range(pts, signed=True)} |"
+                )
         out.append("")
+        out += concentration_by_seed(d)
     return out
+
+
+def concentration_by_seed(d: Path) -> list[str]:
+    """For each split seed of the raw variant: how much of val and test the students
+    with repeated records own, and DKT's test AUC with and without them."""
+    runs = [_load(d / f"student_split_raw{sfx}.json") for sfx in ("", "_seed1", "_seed2")]
+    runs = [r for r in runs if r and "repeated_records" in r]
+    if not runs:
+        return []
+    out = [
+        "Raw rows, per split seed: the students who own repeated records, and DKT with and "
+        "without them:",
+        "",
+        "| seed | test students with repeated records | their share of val rows | "
+        "their share of test rows | DKT val AUC | DKT test AUC | DKT test AUC without them "
+        "| DKT - BKT without them |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    cols: dict[str, list[float]] = {k: [] for k in ("val_share", "test_share", "v", "t", "w", "g")}
+    for r in runs:
+        rr = r["repeated_records"]
+        conc, w = rr["concentration"], rr["scores_without_those_students"]
+        row = {
+            "val_share": conc["val"]["share_of_rows"],
+            "test_share": conc["test"]["share_of_rows"],
+            "v": r["scores"]["DKT"]["val"]["auc"],
+            "t": r["scores"]["DKT"]["test"]["auc"],
+            "w": w["DKT"]["auc"],
+            "g": w["DKT"]["auc"] - w["BKT"]["auc"],
+        }
+        for k, x in row.items():
+            cols[k].append(x)
+        out.append(
+            f"| {r['split']['seed']} | {rr['test_students_excluded']} of "
+            f"{conc['test']['students']} | {row['val_share']:.1%} | {row['test_share']:.1%} | "
+            f"{row['v']:.3f} | {row['t']:.3f} | {row['w']:.3f} | {row['g']:+.3f} |"
+        )
+    if len(runs) > 1:
+        mean = {k: sum(v) / len(v) for k, v in cols.items()}
+        out.append(
+            f"| mean | - | {mean['val_share']:.1%} | {mean['test_share']:.1%} | {mean['v']:.3f} "
+            f"| {mean['t']:.3f} | {mean['w']:.3f} | {mean['g']:+.3f} |"
+        )
+    return out + [""]
 
 
 def leakage(d: Path) -> list[str]:
@@ -353,6 +421,16 @@ def llm_sample(d: Path) -> list[str]:
         f"### LLM arm sample ({s['n']} test attempts, {s['students']} students): correct rate "
         f"{s['sample_correct_rate']:.3f} vs {s['test_correct_rate']:.3f} on the whole test set",
         "",
+    ]
+    if "eligible_test_correct_rate_per_student" in s:
+        out += [
+            "Test rows eligible for the sample (enough history): correct rate "
+            f"{s['eligible_test_correct_rate']:.3f} per attempt, "
+            f"{s['eligible_test_correct_rate_per_student']:.3f} averaged per student (the "
+            "sample takes at most a few rows per student, so it weights students equally).",
+            "",
+        ]
+    out += [
         "| classical model on the sample | AUC | 95% CI | RMSE |",
         "|---|---:|---|---:|",
     ]

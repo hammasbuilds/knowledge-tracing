@@ -33,8 +33,8 @@ DKT paper trained and scored on."""
 
 EXPANDED = "expanded"
 """One row per (attempt, skill): a multi-skill attempt appears once per skill,
-back to back, with the same outcome, but exact duplicate records are removed.
-This is the ASSISTments "corrected" release."""
+back to back, with the same outcome, but repeated (order_id, skill) records
+are removed. This is the ASSISTments "corrected" release."""
 
 COLLAPSED = "collapsed"
 """One row per attempt; a multi-skill attempt gets a single skill whose name is
@@ -221,7 +221,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
 
     * ``missing_skill_rows``: rows with an empty or ``NA`` ``skill_id`` (dropped; an
       attempt keeps its other skills if it had any).
-    * ``exact_duplicate_rows``: a second row with the same ``order_id`` *and*
+    * ``repeated_order_skill_rows``: a second row with the same ``order_id`` *and*
       skill (dropped - it carries no new information).
     * ``conflicting_attempts``: an ``order_id`` whose rows disagree on user,
       problem or correctness (dropped whole - it cannot be trusted).
@@ -233,7 +233,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
     counts = {
         "raw_rows": 0,
         "missing_skill_rows": 0,
-        "exact_duplicate_rows": 0,
+        "repeated_order_skill_rows": 0,
         "non_binary_rows": 0,
         "conflicting_attempts": 0,
     }
@@ -257,7 +257,7 @@ def read_assistments_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, i
         label = f"{sid}:{rec['skill_name'].strip()}"
         g["raw"].append(label)
         if sid in g["skills"]:
-            counts["exact_duplicate_rows"] += 1
+            counts["repeated_order_skill_rows"] += 1
             continue
         g["skills"][sid] = label
     rows: list[_Row] = []
@@ -299,7 +299,7 @@ def read_algebra_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, int]]
 
     An item is a (problem, step) pair. Skills come from ``KC(Default)`` split on
     ``~~``; steps with no KC are dropped and counted, as are repeated KCs within
-    one step (``exact_duplicate_rows``). Rows are ordered by first transaction
+    one step (``repeated_kc_in_step``). Rows are ordered by first transaction
     time, ties broken by the file's row number.
     """
     reader = csv.DictReader(lines, delimiter="\t")
@@ -308,7 +308,7 @@ def read_algebra_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, int]]
     counts = {
         "raw_rows": 0,
         "missing_skill_rows": 0,
-        "exact_duplicate_rows": 0,
+        "repeated_kc_in_step": 0,
         "non_binary_rows": 0,
     }
     rows: list[_Row] = []
@@ -324,7 +324,7 @@ def read_algebra_rows(lines: Iterable[str]) -> tuple[list[_Row], dict[str, int]]
             continue
         parts = [p.strip() for p in kc.split("~~") if p.strip()]
         uniq = tuple(sorted(set(parts)))
-        counts["exact_duplicate_rows"] += len(parts) - len(uniq)
+        counts["repeated_kc_in_step"] += len(parts) - len(uniq)
         row_id = int(rec["Row"])
         order = (rec["First Transaction Time"] or "", row_id)
         item = sys.intern(f"{rec['Problem Hierarchy']}|{rec['Problem Name']}|{rec['Step Name']}")

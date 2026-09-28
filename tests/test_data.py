@@ -32,7 +32,7 @@ def test_cleaning_counts(assist_path):
     c = log.cleaning
     assert c["raw_rows"] == 10
     assert c["missing_skill_rows"] == 1
-    assert c["exact_duplicate_rows"] == 1
+    assert c["repeated_order_skill_rows"] == 1
     assert c["non_binary_rows"] == 1
     assert c["conflicting_attempts"] == 1
     assert c["attempts_without_any_skill"] == 1
@@ -101,7 +101,7 @@ def test_algebra_multi_kc_missing_kc_and_time_order(tmp_path):
     p.write_text(ALGEBRA_HEADER + "\n".join(rows) + "\n", encoding="latin-1")
     col = load_algebra(p, COLLAPSED)
     assert col.cleaning["missing_skill_rows"] == 1
-    assert col.cleaning["exact_duplicate_rows"] == 1
+    assert col.cleaning["repeated_kc_in_step"] == 1
     assert col.attempt.tolist() == [2, 1, 4]  # s1 sorted by time, then s2
     assert col.skill_names[col.skill[1]] == "KC-a+KC-b"
     assert len(load_algebra(p, EXPANDED)) == 4
@@ -148,7 +148,7 @@ def test_crosscheck_compares_students_problems_order_and_skill_ids(tmp_path):
 
 
 def test_duplicate_audit_separates_multi_skill_rows_from_repeated_records(tmp_path):
-    from kt.audit import assistments_file_audit, duplicate_structure, exact_duplicate_mask
+    from kt.audit import assistments_file_audit, duplicate_structure, repeated_record_mask
 
     rows = [
         (1, "u1", "p1", 1, "5", "A"),
@@ -168,7 +168,7 @@ def test_duplicate_audit_separates_multi_skill_rows_from_repeated_records(tmp_pa
     assert d["repeated_record_extra_rows"] == 2 and d["repeated_attempts"] == 1
     assert d["copies_per_repeated_group"]["max"] == 3
     assert d["students_owning_repeated_records"] == 1
-    assert exact_duplicate_mask(raw).sum() == 3
+    assert repeated_record_mask(raw).sum() == 3
     audit = assistments_file_audit(p)
     assert audit["repeated_record_copies"] == 2 and audit["byte_identical_copies"] == 1
     assert audit["columns_differing_in_copies"] == {"attempt_count": 1}
