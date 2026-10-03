@@ -14,7 +14,7 @@
       "cleaning": {
         "raw_rows": 525534,
         "missing_skill_rows": 66326,
-        "exact_duplicate_rows": 121207,
+        "repeated_order_skill_rows": 121207,
         "non_binary_rows": 0,
         "conflicting_attempts": 0,
         "attempts_without_any_skill": 63755,
@@ -40,7 +40,7 @@
       "cleaning": {
         "raw_rows": 525534,
         "missing_skill_rows": 66326,
-        "exact_duplicate_rows": 121207,
+        "repeated_order_skill_rows": 121207,
         "non_binary_rows": 0,
         "conflicting_attempts": 0,
         "attempts_without_any_skill": 63755,
@@ -66,7 +66,7 @@
       "cleaning": {
         "raw_rows": 525534,
         "missing_skill_rows": 66326,
-        "exact_duplicate_rows": 121207,
+        "repeated_order_skill_rows": 121207,
         "non_binary_rows": 0,
         "conflicting_attempts": 0,
         "attempts_without_any_skill": 63755,

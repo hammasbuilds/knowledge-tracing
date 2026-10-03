@@ -1,56 +1,69 @@
 # STATUS
 
 **READY-FOR-REVIEW** - the classical study (the headline) is complete on two real public
-datasets. The LLM arm is built, tested with a fake client, its 300 jobs are frozen, and it is
+datasets and three student splits each. The LLM arm is built, tested with a fake client and
 queued in `scripts/run_models.sh`; it is a side arm, not the headline.
 
 ## Self-score (honest, after a hostile pass)
 
 | Points | Criterion | Score | Reason |
 |---:|---|---:|---|
-| 15 | Works from a clean clone | 15 | Fresh `git clone` to a temp dir: `uv sync --offline`, `uv run pytest -q` (71 passed), `uv run python demo.py`, `uv run kt recommend --history examples/history.csv`, `ruff check` all succeed with no data present. Tests read no env vars and no data dirs. |
-| 20 | Real data, real result | 20 | ASSISTments 2009 original release (525,534 rows) and KDD Cup Algebra 2005 (809,694 rows), both sha256-pinned in `scripts/fetch_data.sh`. Every README number is in `results/*/*.json` / `results/SUMMARY.md`, produced on this machine. Our collapse of the original file matches the publisher's collapsed release row for row. |
-| 15 | Finding quality | 14 | Duplicates vs leakage vs horizon separated and each controlled (same test students across variants, same rows across horizons, same rows for the fitted-vs-online leak contrast); paired student-level bootstrap CIs; three split seeds; hyper-parameters tuned on val only; surprising numbers investigated (DKT lower under row split, raw ItemMean). -1: the mastery comparison has no CI and the policy evaluation is observational (stated). |
-| 15 | Correctness | 14 | No-peeking flip test on every model at two horizons (it caught a real cross-student leak), LSTM gradient check, EM parameter recovery, reference BKT filter, brute-force AUC and index tests. -1: one-dataset-shaped assumptions (e.g. per-student ordering by order_id / transaction time) are tested on fixtures, not re-derived from the raw timestamps. |
-| 10 | Usability | 9 | `kt --help` and per-command help, helpful errors (unknown skill suggests `kt skills`, bad CSV line numbers, missing files point to the fetch script), sensible defaults (committed models). -1: `kt recommend` only uses BKT; DKT is saved but has no CLI front end. |
-| 10 | README | 10 | House skeleton, mermaid + blockquote claim, findings table at top, 5 real Input/Output samples, NOT-do section, 7 real problems hit, British spelling, one-line credit to HKUDS/DeepTutor. |
-| 10 | Code quality | 9 | ruff clean, typed, numpy-only runtime, small modules. -1: `BKT._em` is a long function (forward, backward and M-step in one loop body). |
-| 5 | Honesty | 5 | Every number traceable to a results file; the hypothesis that DKT beats everything was wrong on ASSIST09 and the README says so; limitations listed. |
-| **100** | | **96** | |
+| 15 | Works from a clean clone | 15 | Fresh `git clone` of HEAD to a temp dir: `uv sync --offline`, `uv run pytest -q` (97 passed), `uv run python demo.py`, `uv run kt recommend --history examples/history.csv`, `ruff check` all succeed with no `data/` present. The packaged models are committed in `src/kt/pretrained/` (the only model location). Tests read no env vars and no data dirs. |
+| 20 | Real data, real result | 20 | ASSISTments 2009 original release and KDD Cup Algebra 2005, sha256-pinned. Both studies were re-run this round with the committed code; every README number is in `results/*/*.json` / `results/SUMMARY.md`. Our collapse matches the publisher's collapsed release row for row. |
+| 15 | Finding quality | 14 | Headline now reported as a three-split mean and range, with the concentration of repeated records per split and scores without those students; paired student-level bootstrap CIs per split; same-rows controls for duplicates, horizons and the leak; prior art (Xiong et al., Wilson et al., Khajah et al. 2016) cited and the work framed as a replication plus four additions. -1: the mastery comparison has no CI and the policy evaluation is observational (stated). |
+| 15 | Correctness | 14 | No-peeking flip test on every model at two horizons, LSTM gradient check, EM recovery, reference BKT filter, brute-force AUC; regression tests for the tutor default (8/8 vs 0/6), the parser (1.5 rejected), the CLI error order and the quick-run model guard. -1: per-student ordering assumptions tested on fixtures only. |
+| 10 | Usability | 10 | Default model is the per-skill BKT the study scores; `--help` everywhere; every bad input exits 2 with an `error:` line (unknown skill hint names the `--model` in use, target outside (0, 1) rejected, `--variant` checked after the data file); `--quick` never overwrites the packaged models. |
+| 10 | README | 10 | House skeleton, prior-work section, three-split headline and concentration subsection, 5 re-captured Input/Output samples, NOT-do section, 10 real problems hit. |
+| 10 | Code quality | 9 | ruff clean, typed, numpy-only runtime, one model location, no duplicated computation in `study.py`. -1: `BKT._em` is still one long function. |
+| 5 | Honesty | 5 | Seed-0-only headline replaced by the three-split mean with the weaker splits shown; the skill-level IRT the tutor ships is scored and its limitation shown in the README; the raw-trained DKT's small loss vs the collapsed one (0.004-0.008 on every split) is stated rather than called "matching". |
+| **100** | | **97** | |
 
-## Done
+## What changed this round (reviewer defects 1-11)
 
-- Loaders for ASSISTments 2009 (csv or zip) and KDD Cup 2010 (txt or zip) with three explicit
-  row shapes (raw / expanded / collapsed) and counted cleaning (missing skills, exact
-  duplicates, conflicting attempts, non-binary labels).
-- From-scratch models: ItemMean baseline, BKT (EM, bounded, pooled fallback), PFA (Newton per
-  skill), IRT 1PL/2PL (MAP fit, online EAP ability; leaky "fitted" mode for the leak test),
-  DKT (numpy LSTM, hand-written backward pass, truncated BPTT, Adam, early stopping).
-- Student split 80/15/5 (house policy for <10k units) + row split; horizons k = 1..10;
-  bootstrap CIs; train/val/test reported for every model.
-- Next-exercise policy (target 0.7, mastery threshold) with a simulator-free evaluation (band
-  check, Leopard-style effort/score, coverage-matched against three-in-a-row).
-- LLM arm: prompts, cached Ollama client, sampling, scoring, `scripts/run_models.sh` with
-  RAM/GPU checks and `--dry-run`.
+1. Tutor default is now BKT (per-skill, the model the study scores). The IRT option is
+   documented as a skill-level 1PL with one shared ability; the study scores that exact model
+   (`irt_skill_level`: test AUC 0.724 vs 0.771 item-level). Regression tests pin the
+   8/8-Venn vs 0/6-Area ranking for both.
+2. README blockquote, mermaid, findings rows 1-2 and section 1-2 report three-split means and
+   ranges; new subsection "The raw headline rests on a handful of students" (per-seed share of
+   rows, DKT with and without the owners, the test > val explanation). `kt report` generates
+   both tables.
+3. Prior work section: Xiong et al. 2016, Wilson et al. 2016, Khajah/Lindsey/Mozer 2016; the
+   repo is framed as a replication plus horizons, leak isolation, calibration band and
+   coverage-matched mastery.
+4. HEAD is self-consistent: `src/kt/pretrained/`, every seed result, `llm_sample.json` and both
+   datasets' fitted models are committed; verified by a fresh clone.
+5. README test count, Layout (tutor.py, audit.py, synthetic.py, pretrained/), samples 2-5
+   re-captured verbatim.
+6. `exact_duplicate_rows` renamed `repeated_order_skill_rows` (Algebra05: `repeated_kc_in_step`);
+   README says "repeated (order_id, skill) records".
+7. `parse_probability`: only `%` or a whole number 2-100 is a percentage; `1.5` is rejected.
+8. `--variant` error is `error:` + exit 2 after the data check; the unknown-skill hint names
+   `--model`.
+9. Algebra05 re-run with the current `run_dataset`; `algebra05_irt.json` now exists.
+10. `kt study` writes models only to `src/kt/pretrained/` (`models/` removed; `--quick` saves
+    nothing unless `--models-dir` is given). `study.py`'s `keep` alias and double `owners` gone.
+11. README states the LLM's 30-attempt window vs full history, that the dry-run needs the
+    dataset, and the per-student weighting of the sample (now measured:
+    `eligible_test_correct_rate_per_student`).
+
+Beyond the list: `--target` outside (0, 1) is rejected; the seed table has a mean column; the
+raw-trained DKT scored once per attempt is reported on all three splits.
 
 ## Queued for the model run
 
-- `scripts/run_models.sh` - qwen2.5:14b-instruct on `results/assist09/llm_jobs.jsonl`
-  (300 ASSIST09 test attempts, 172 students). **300 model calls**, ~15 min at ~3 s/call.
-  Writes `results/assist09/llm_answers.jsonl` and `results/assist09/llm_arm.json`; then
-  `uv run kt report` adds the LLM table to `results/SUMMARY.md`. The README has no LLM number
-  and needs one short paragraph once it exists.
+- `scripts/run_models.sh` - qwen2.5:14b-instruct on the 300 frozen ASSIST09 test attempts
+  (172 students). **300 model calls**, ~15 min at ~3 s/call. Writes
+  `results/assist09/llm_answers.jsonl` and `llm_arm.json`; `uv run kt report` then adds the
+  LLM table. The README needs one paragraph once it exists.
 
 ## Known weaknesses remaining
 
-- Algebra05 test split is 29 students (policy 80/15/5 on 574 students); mitigated by two extra
-  seeds, not removed.
-- DKT reads skills only; an item-aware DKT was not tried, so "IRT beats DKT on ASSIST09" is
-  about the standard DKT.
-- Mastery comparison: point estimates only, observational (ASSISTments stops assignments at
-  three in a row).
-- Hyper-parameters for the raw/expanded variants and extra seeds reuse the configuration chosen
-  on the collapsed variant's validation set (each model still early-stops on its own data).
+- Algebra05 test split is 29 students; mitigated by two extra seeds.
+- DKT reads skills only; an item-aware DKT was not tried.
+- Mastery comparison: point estimates only, observational.
+- Hyper-parameters for raw/expanded and extra seeds reuse the seed-0 collapsed selection.
+- The tutor cannot run the item-level IRT (a history has no problem ids).
 
 ## Reproduce every result
 
@@ -59,16 +72,13 @@ unset VIRTUAL_ENV
 uv sync
 uv run pytest -q
 uv run python demo.py
-scripts/fetch_data.sh                    # 3 files, sha256-checked (slow hosts: parallel ranges)
+scripts/fetch_data.sh                    # 3 files, sha256-checked
 uv run kt study --data data/raw/skill_builder_data_original.csv \
-    --crosscheck data/raw/skill_builder_data_corrected_collapsed.csv        # ~31 min
-uv run kt study --dataset algebra05 --data data/raw/algebra_2005_2006.zip \
-    --variant expanded --variant collapsed                                  # ~73 min
+    --crosscheck data/raw/skill_builder_data_corrected_collapsed.csv        # ~40 min
 uv run kt llm build --data data/raw/skill_builder_data_original.csv         # 300 frozen jobs
+uv run kt study --dataset algebra05 --data data/raw/algebra_2005_2006.zip \
+    --variant expanded --variant collapsed                                  # ~75 min
 uv run kt report                                                            # results/SUMMARY.md
 scripts/run_models.sh --dry-run                                             # model arm plan
 uv run kt recommend --history examples/history.csv
 ```
-
-Runs are deterministic: re-running the ASSIST09 study reproduced every JSON value except
-wall-clock seconds.

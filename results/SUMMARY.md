@@ -25,14 +25,14 @@ students train/val/test: 459 / 86 / 29; rows: 490,635 / 80,181 / 36,209
 
 ### algebra05: test AUC on 3 different student splits
 
-| model | seed 0 | seed 1 | seed 2 |
-|---|---:|---:|---:|
-| ItemMean | 0.790 [0.776, 0.801] | 0.799 [0.786, 0.812] | 0.810 [0.783, 0.829] |
-| BKT | 0.741 [0.724, 0.754] | 0.754 [0.742, 0.769] | 0.767 [0.749, 0.786] |
-| PFA | 0.744 [0.729, 0.755] | 0.755 [0.744, 0.767] | 0.754 [0.738, 0.768] |
-| IRT-1PL | 0.808 [0.793, 0.819] | 0.817 [0.804, 0.829] | 0.827 [0.807, 0.844] |
-| IRT-2PL | 0.809 [0.794, 0.820] | 0.816 [0.803, 0.830] | 0.829 [0.808, 0.846] |
-| DKT | 0.812 [0.800, 0.819] | 0.817 [0.806, 0.829] | 0.832 [0.815, 0.850] |
+| model | seed 0 | seed 1 | seed 2 | mean (range) |
+|---|---:|---:|---:|---:|
+| ItemMean | 0.790 [0.776, 0.801] | 0.799 [0.786, 0.812] | 0.810 [0.783, 0.829] | 0.800 (0.790 to 0.810) |
+| BKT | 0.741 [0.724, 0.754] | 0.754 [0.742, 0.769] | 0.767 [0.749, 0.786] | 0.754 (0.741 to 0.767) |
+| PFA | 0.744 [0.729, 0.755] | 0.755 [0.744, 0.767] | 0.754 [0.738, 0.768] | 0.751 (0.744 to 0.755) |
+| IRT-1PL | 0.808 [0.793, 0.819] | 0.817 [0.804, 0.829] | 0.827 [0.807, 0.844] | 0.817 (0.808 to 0.827) |
+| IRT-2PL | 0.809 [0.794, 0.820] | 0.816 [0.803, 0.830] | 0.829 [0.808, 0.846] | 0.818 (0.809 to 0.829) |
+| DKT | 0.812 [0.800, 0.819] | 0.817 [0.806, 0.829] | 0.832 [0.815, 0.850] | 0.820 (0.812 to 0.832) |
 
 ### algebra05: the same students, three ways of shaping the rows
 
@@ -49,6 +49,21 @@ students train/val/test: 459 / 86 / 29; rows: 490,635 / 80,181 / 36,209
 | DKT - PFA | +0.180 [0.166, 0.194] | +0.067 [0.056, 0.076] |
 | DKT - IRT-1PL | +0.101 [0.090, 0.113] | +0.004 [-0.003, 0.012] |
 | DKT - IRT-2PL | +0.100 [0.090, 0.113] | +0.003 [-0.004, 0.011] |
+
+Validation AUC next to test AUC (the same models, the val students):
+
+| rows are | BKT val / test | IRT-1PL val / test | DKT val / test |
+|---|---|---|---|
+| expanded | 0.745 / 0.728 | 0.820 / 0.811 | 0.914 / 0.912 |
+| collapsed | 0.751 / 0.741 | 0.816 / 0.808 | 0.820 / 0.812 |
+
+DKT test AUC, and DKT - BKT and DKT - IRT-1PL, on three student splits (mean and range over the seeds):
+
+| rows are | seed 0 | seed 1 | seed 2 | mean (range) |
+|---|---|---|---|---|
+| collapsed, DKT | 0.812 | 0.817 | 0.832 | 0.820 (0.812 to 0.832) |
+| collapsed, DKT - BKT | +0.071 [0.057, 0.081] | +0.063 [0.055, 0.070] | +0.065 [0.054, 0.072] | +0.066 (+0.063 to +0.071) |
+| collapsed, DKT - IRT-1PL | +0.004 [-0.003, 0.012] | +0.001 [-0.007, 0.009] | +0.004 [-0.003, 0.014] | +0.003 (+0.001 to +0.004) |
 
 ### algebra05: row-level random split vs split by student (test AUC)
 
@@ -128,6 +143,8 @@ students train/val/test: 3331 / 624 / 208; rows: 225,621 / 42,431 / 15,053
 | IRT-2PL | item_sd=2.0 | 0.816 | 0.774 | 0.767 | [0.744, 0.785] | 0.433 | 0.038 |
 | DKT | hidden=64, lr=0.003 | 0.757 | 0.752 | 0.753 | [0.737, 0.769] | 0.435 | 0.010 |
 
+IRT-1PL as saved for `kt recommend --model irt` (item offsets dropped, every item at its skill's difficulty): train / val / test AUC 0.721 / 0.725 / 0.724, test RMSE 0.446, test ECE 0.008.
+
 | paired test AUC difference | point | 95% CI |
 |---|---:|---|
 | DKT - ItemMean | +0.057 | [0.034, 0.078] |
@@ -138,14 +155,14 @@ students train/val/test: 3331 / 624 / 208; rows: 225,621 / 42,431 / 15,053
 
 ### assist09: test AUC on 3 different student splits
 
-| model | seed 0 | seed 1 | seed 2 |
-|---|---:|---:|---:|
-| ItemMean | 0.697 [0.672, 0.716] | 0.689 [0.670, 0.707] | 0.694 [0.672, 0.713] |
-| BKT | 0.721 [0.698, 0.739] | 0.703 [0.681, 0.728] | 0.730 [0.706, 0.757] |
-| PFA | 0.710 [0.688, 0.728] | 0.691 [0.667, 0.716] | 0.720 [0.697, 0.745] |
-| IRT-1PL | 0.771 [0.749, 0.789] | 0.760 [0.741, 0.780] | 0.777 [0.756, 0.799] |
-| IRT-2PL | 0.767 [0.744, 0.785] | 0.759 [0.738, 0.779] | 0.771 [0.749, 0.793] |
-| DKT | 0.753 [0.737, 0.769] | 0.731 [0.708, 0.757] | 0.754 [0.727, 0.785] |
+| model | seed 0 | seed 1 | seed 2 | mean (range) |
+|---|---:|---:|---:|---:|
+| ItemMean | 0.697 [0.672, 0.716] | 0.689 [0.670, 0.707] | 0.694 [0.672, 0.713] | 0.693 (0.689 to 0.697) |
+| BKT | 0.721 [0.698, 0.739] | 0.703 [0.681, 0.728] | 0.730 [0.706, 0.757] | 0.718 (0.703 to 0.730) |
+| PFA | 0.710 [0.688, 0.728] | 0.691 [0.667, 0.716] | 0.720 [0.697, 0.745] | 0.707 (0.691 to 0.720) |
+| IRT-1PL | 0.771 [0.749, 0.789] | 0.760 [0.741, 0.780] | 0.777 [0.756, 0.799] | 0.769 (0.760 to 0.777) |
+| IRT-2PL | 0.767 [0.744, 0.785] | 0.759 [0.738, 0.779] | 0.771 [0.749, 0.793] | 0.766 (0.759 to 0.771) |
+| DKT | 0.753 [0.737, 0.769] | 0.731 [0.708, 0.757] | 0.754 [0.727, 0.785] | 0.746 (0.731 to 0.754) |
 
 ### assist09: the same students, three ways of shaping the rows
 
@@ -164,6 +181,79 @@ students train/val/test: 3331 / 624 / 208; rows: 225,621 / 42,431 / 15,053
 | DKT - PFA | +0.177 [0.116, 0.229] | +0.113 [0.099, 0.127] | +0.044 [0.031, 0.057] |
 | DKT - IRT-1PL | +0.189 [0.094, 0.261] | +0.053 [0.035, 0.068] | -0.017 [-0.032, -0.002] |
 | DKT - IRT-2PL | +0.198 [0.098, 0.271] | +0.055 [0.037, 0.071] | -0.013 [-0.029, 0.003] |
+
+Validation AUC next to test AUC (the same models, the val students):
+
+| rows are | BKT val / test | IRT-1PL val / test | DKT val / test |
+|---|---|---|---|
+| raw | 0.755 / 0.737 | 0.758 / 0.731 | 0.871 / 0.920 |
+| expanded | 0.715 / 0.714 | 0.774 / 0.767 | 0.822 / 0.819 |
+| collapsed | 0.722 / 0.721 | 0.776 / 0.771 | 0.752 / 0.753 |
+
+### assist09: what the extra rows are
+
+| | rows |
+|---|---:|
+| attempts | 283,105 |
+| extra rows from multi-skill tagging (one row per skill) | 54,896 |
+| extra rows from repeated records (3,213 attempts, copied median 37x, max 215x) | 121,207 |
+| students owning any repeated record | 133 |
+| share of repeated rows owned by the top 10 of them | 26.7% |
+
+In file order (before any sorting) 26.4% of rows repeat the previous row's order_id. Of 121,207 repeated-record copies, 0 are identical to the first; columns that differ: opportunity, opportunity_original.
+
+| split | rows | attempts | rows per attempt | students | with repeated records | their share of rows |
+|---|---:|---:|---:|---:|---:|---:|
+| train | 370,728 | 225,621 | 1.64 | 3331 | 109 | 30.5% |
+| val | 60,055 | 42,431 | 1.42 | 624 | 15 | 19.7% |
+| test | 28,425 | 15,053 | 1.89 | 208 | 9 | 44.7% |
+
+Raw test AUC with the 9 test students who own repeated records removed:
+
+| model | all raw rows | raw rows, those students removed | once per attempt, those students removed |
+|---|---:|---:|---:|
+| ItemMean | 0.626 | 0.693 | 0.700 |
+| BKT | 0.737 | 0.725 | 0.725 |
+| PFA | 0.743 | 0.710 | 0.710 |
+| IRT-1PL | 0.731 | 0.772 | 0.773 |
+| IRT-2PL | 0.722 | 0.770 | 0.769 |
+| DKT | 0.920 | 0.830 | 0.763 |
+
+DKT test AUC, and DKT - BKT and DKT - IRT-1PL, on three student splits (mean and range over the seeds):
+
+| rows are | seed 0 | seed 1 | seed 2 | mean (range) |
+|---|---|---|---|---|
+| raw, DKT | 0.920 | 0.890 | 0.909 | 0.907 (0.890 to 0.920) |
+| raw, DKT scored once per attempt | 0.749 | 0.723 | 0.747 | 0.740 (0.723 to 0.749) |
+| raw, DKT - BKT | +0.183 [0.086, 0.251] | +0.145 [0.083, 0.219] | +0.104 [0.074, 0.134] | +0.144 (+0.104 to +0.183) |
+| raw, DKT - IRT-1PL | +0.189 [0.094, 0.261] | +0.148 [0.062, 0.240] | +0.148 [0.082, 0.203] | +0.162 (+0.148 to +0.189) |
+| expanded, DKT | 0.819 | 0.806 | 0.824 | 0.817 (0.806 to 0.824) |
+| expanded, DKT scored once per attempt | 0.752 | 0.723 | 0.748 | 0.741 (0.723 to 0.752) |
+| expanded, DKT - BKT | +0.105 [0.089, 0.119] | +0.108 [0.095, 0.121] | +0.104 [0.091, 0.117] | +0.106 (+0.104 to +0.108) |
+| expanded, DKT - IRT-1PL | +0.053 [0.035, 0.068] | +0.048 [0.031, 0.066] | +0.047 [0.035, 0.062] | +0.049 (+0.047 to +0.053) |
+| collapsed, DKT | 0.753 | 0.731 | 0.754 | 0.746 (0.731 to 0.754) |
+| collapsed, DKT - BKT | +0.032 [0.021, 0.046] | +0.028 [0.020, 0.037] | +0.024 [0.016, 0.033] | +0.028 (+0.024 to +0.032) |
+| collapsed, DKT - IRT-1PL | -0.017 [-0.032, -0.002] | -0.029 [-0.048, -0.009] | -0.024 [-0.040, -0.004] | -0.023 (-0.029 to -0.017) |
+
+Raw rows, per split seed: the students who own repeated records, and DKT with and without them:
+
+| seed | test students with repeated records | their share of val rows | their share of test rows | DKT val AUC | DKT test AUC | DKT test AUC without them | DKT - BKT without them |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 9 of 208 | 19.7% | 44.7% | 0.871 | 0.920 | 0.830 | +0.105 |
+| 1 | 7 of 208 | 16.5% | 31.9% | 0.860 | 0.890 | 0.814 | +0.115 |
+| 2 | 8 of 208 | 29.2% | 33.7% | 0.896 | 0.909 | 0.823 | +0.112 |
+| mean | - | 21.8% | 36.7% | 0.875 | 0.907 | 0.822 | +0.110 |
+
+### assist09: our collapse vs the publisher's skill_builder_data_corrected_collapsed.csv
+
+| check | result |
+|---|---|
+| same_row_count | True |
+| same_attempt_ids_in_same_order | True |
+| same_students | True |
+| same_problems | True |
+| same_outcomes | True |
+| rows_with_different_skill_ids | 0 |
 
 ### assist09: row-level random split vs split by student (test AUC)
 
@@ -229,3 +319,14 @@ Each model thresholded to sign off the same 46.0% of (student, skill) sequences 
 |---|---:|---:|---:|---:|---|---:|---:|
 | bounded | 149 | 47 | 36 | 0 | True (103 it) | 0.722 | 0.721 |
 | unbounded | 149 | 1 | 4 | 7 | True (223 it) | 0.724 | 0.726 |
+
+### LLM arm sample (300 test attempts, 172 students): correct rate 0.557 vs 0.628 on the whole test set
+
+| classical model on the sample | AUC | 95% CI | RMSE |
+|---|---:|---|---:|
+| ItemMean | 0.730 | [0.674, 0.791] | 0.467 |
+| BKT | 0.790 | [0.731, 0.843] | 0.441 |
+| PFA | 0.769 | [0.709, 0.826] | 0.458 |
+| IRT-1PL | 0.809 | [0.759, 0.858] | 0.420 |
+| IRT-2PL | 0.822 | [0.770, 0.872] | 0.411 |
+| DKT | 0.805 | [0.750, 0.857] | 0.425 |

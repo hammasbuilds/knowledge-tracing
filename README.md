@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="python">
   <img src="https://img.shields.io/badge/runtime%20deps-numpy%20only-success" alt="deps">
   <img src="https://img.shields.io/badge/GPU-not%20needed-success" alt="gpu">
-  <img src="https://img.shields.io/badge/tests-71%20passing-success" alt="tests">
+  <img src="https://img.shields.io/badge/tests-97%20passing-success" alt="tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license"></a>
 </p>
 
@@ -29,38 +29,46 @@ should they do next?* - from scratch. No code from it is used.
 ```mermaid
 flowchart TD
     A["ASSISTments 2009 original release<br/>525,534 rows"] --> B["raw: duplicates kept<br/>459,208 rows"]
-    A --> C["expanded: exact duplicates removed<br/>338,001 rows"]
+    A --> C["expanded: repeated (order_id, skill) records removed<br/>338,001 rows"]
     A --> D["collapsed: one row per attempt<br/>283,105 rows"]
-    B --> E["six models, split by student,<br/>tuned on val, scored on test"]
+    B --> E["six models, split by student,<br/>tuned on val, scored on test,<br/>three student splits"]
     C --> E
     D --> E
-    E --> F["DKT's lead over BKT:<br/>+0.183 raw, +0.105 expanded, +0.032 collapsed"]
-    E --> G["on collapsed rows an IRT with online ability<br/>beats DKT: 0.771 vs 0.753"]
+    E --> F["DKT's lead over BKT, mean of 3 splits:<br/>+0.144 raw, +0.106 expanded, +0.028 collapsed"]
+    E --> G["on collapsed rows an IRT with online ability<br/>beats DKT on 3 of 3 splits: 0.769 vs 0.746"]
 
     style F fill:#2563eb,color:#fff
     style G fill:#2563eb,color:#fff
 ```
 
 The ASSISTments 2009 skill-builder file writes a multi-skill attempt once per skill tag, and
-the original release also repeats 121,207 records outright. After sorting by student and time,
-**38.3% of rows are copies of the row immediately before them** - same attempt, same answer.
+the original release also repeats 121,207 (order_id, skill) records - not byte-identical
+copies (their `opportunity` columns differ), but the same attempt with the same answer. After
+sorting by student and time, **38.3% of rows are copies of the row immediately before them**.
 A recurrent model that sees the previous row's answer can copy it; a per-skill model cannot,
 because the copy carries a different skill tag.
 
-> **On the file as shipped, DKT scores 0.920 test AUC and beats BKT by 0.183. Score the very
-> same trained model once per real attempt and it drops to 0.749. Train and score on one row
-> per attempt and it is 0.753 - still ahead of BKT (+0.032) and PFA (+0.044), but *behind* a
-> plain 1PL IRT whose ability is re-estimated from each student's own history (0.771).**
-> On a second dataset (KDD Cup Algebra 2005) the same pattern holds - duplicated rows add
-> +0.10 AUC to DKT - and after collapsing, DKT and IRT tie (0.812 vs 0.808), with DKT's edge
-> gone by the time it has to predict two attempts ahead.
+> **On the file as shipped, DKT scores 0.907 test AUC (mean of three student splits; 0.890 to
+> 0.920) and beats BKT by +0.144 (+0.104 to +0.183). Score the same trained models once per
+> real attempt and they drop to 0.740 (0.723 to 0.749). Train and score on one row per attempt
+> and DKT is 0.746 - still ahead of BKT (+0.028), but *behind* a plain 1PL IRT whose ability is
+> re-estimated from each student's own history (−0.023, 95% CI below zero on all three
+> splits).** The raw number is also fragile: on each split 7-9 of the 208 test students own
+> all the repeated records - 32% to 45% of the raw test rows - and without them raw DKT is
+> 0.822. On a second dataset (KDD Cup Algebra 2005) duplicated rows add +0.10 AUC to DKT, and
+> after collapsing DKT and IRT tie on all three splits (+0.003), with DKT's edge gone by the
+> time it has to predict two attempts ahead.
+
+This replicates three 2016 results rather than discovering them (see
+[Prior work](#prior-work-and-what-is-new-here)); what it adds is the measurement of *where*
+the inflation sits and four checks those papers did not run.
 
 ## Findings
 
 | # | Question | Answer (test set, split by student, 95% student-level bootstrap CIs) |
 |---|---|---|
-| 1 | How much do duplicate rows inflate DKT? | ASSIST09: **0.920 → 0.753** (raw → collapsed). The raw-trained model scored once per attempt: **0.749**. Algebra05: **0.912 → 0.812**. |
-| 2 | Does DKT's advantage survive de-duplication? | Over BKT/PFA, yes, shrunk ~5x: DKT − BKT **+0.183 → +0.032 [0.021, 0.046]**. Over IRT, no: DKT − IRT-1PL **−0.017 [−0.032, −0.002]** on ASSIST09, **+0.004 [−0.003, 0.012]** on Algebra05. |
+| 1 | How much do duplicate rows inflate DKT? | ASSIST09, mean of 3 student splits (range): **0.907 (0.890-0.920) → 0.746 (0.731-0.754)** (raw → collapsed); the raw-trained models scored once per attempt: **0.740 (0.723-0.749)**. The raw figure rests on 7-9 test students per split who own 32-45% of the raw test rows; without them it is **0.822**. Algebra05 (seed 0): **0.912 → 0.812**. |
+| 2 | Does DKT's advantage survive de-duplication? | Over BKT/PFA, yes, shrunk ~5x: DKT − BKT **+0.144 → +0.028** (3-split means; collapsed CI above zero on every split). Over IRT, no: DKT − IRT-1PL **−0.023 (−0.029 to −0.017)** on ASSIST09, CI below zero on every split; **+0.003 (+0.001 to +0.004)** on Algebra05, CI spanning zero on every split. |
 | 3 | How much does a row-level random split inflate results? | Much less than duplicates. Letting IRT reuse a student's *fitted* ability (the row-split leak) adds **+0.006 to +0.008** AUC overall on ASSIST09, concentrated in a student's first five attempts (**+0.038** for 1PL, **+0.047** for 2PL); on Algebra05 it adds +0.001 to +0.002. |
 | 4 | Next attempt vs later attempts? | IRT barely moves (ASSIST09 0.771 → 0.758 at 10 ahead). DKT loses most of its lead: Algebra05 **0.812 → 0.787** one step further out, below the history-free item baseline (0.791). BKT and PFA fall below that baseline on ASSIST09 by 3 ahead. |
 | 5 | Does "predicted 0.7" mean 70% correct? | For IRT-1PL and DKT, yes (observed 0.700 and 0.704 on ASSIST09). BKT over-promises (0.685 observed at 0.711 predicted). |
@@ -70,11 +78,40 @@ because the copy carries a different skill tag.
 Every number above is in [`results/SUMMARY.md`](results/SUMMARY.md), which `kt report`
 generates from the JSON files in `results/`.
 
+## Prior work, and what is new here
+
+Findings 1 and 2 are a replication. Three papers at EDM 2016 got there first:
+
+- **Xiong, Zhao, Van Inwegen & Beck, "Going deeper with deep knowledge tracing"** found the
+  duplicated records in the original ASSISTments 2009 release and showed they inflate DKT's
+  reported AUC; with them removed, DKT's margin over BKT and PFA shrinks sharply.
+- **Wilson, Karklin, Han & Ekanadham, "Back to the basics: Bayesian extensions of IRT
+  outperform neural networks for proficiency estimation"** showed IRT-style models match or
+  beat DKT on the same kind of data.
+- **Khajah, Lindsey & Mozer, "How deep is knowledge tracing?"** showed that BKT extended with
+  forgetting, student ability and skill discovery closes most of the gap to DKT.
+
+What this repo adds, beyond rebuilding all four model families from scratch in numpy:
+
+1. **Where the inflation sits.** The raw-trained DKT scored once per attempt, the raw file
+   split into multi-skill copies and repeated records, and the finding that 7-9 test students
+   per split own 32-45% of the raw test rows (below).
+2. **Horizons** (finding 4): DKT's lead lives in the very next attempt; one or two steps
+   further out it falls below IRT and, on Algebra05, below a history-free item baseline.
+3. **Leak isolation** (finding 3): the row-split leak measured on the *same* test rows by
+   toggling only whether IRT may reuse a fitted ability, rather than by comparing two splits.
+4. **The calibration band** (finding 5) and **coverage-matched mastery** (finding 6): whether
+   "predicted 0.7" means 70%, and whether model-declared mastery beats three-in-a-row when
+   both sign off the same share of students.
+
 ### 1-2 · The duplicates, measured on the same 208 test students
 
 ASSISTments 2009-2010 skill builder, original release (the one the DKT paper used), 4,163
 students, split 80/15/5 by student (3,331 / 624 / 208). Hyper-parameters were chosen on the
-collapsed variant's validation students and reused for the other two.
+collapsed variant's validation students (seed 0) and reused for the other two variants and
+the other two splits.
+
+Test AUC on the seed-0 split:
 
 | rows are | rows | copies of previous row | ItemMean | BKT | PFA | IRT-1PL | IRT-2PL | DKT |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -84,17 +121,43 @@ collapsed variant's validation students and reused for the other two.
 | expanded, scored once per attempt | 15,053 | - | 0.696 | 0.713 | 0.705 | 0.767 | 0.763 | 0.752 |
 | collapsed | 283,105 | 0.0% | 0.697 | 0.721 | 0.710 | **0.771** | 0.767 | 0.753 |
 
-| paired test AUC difference | raw | expanded | collapsed |
-|---|---|---|---|
-| DKT − BKT | +0.183 [0.086, 0.251] | +0.105 [0.089, 0.119] | +0.032 [0.021, 0.046] |
-| DKT − PFA | +0.177 [0.116, 0.229] | +0.113 [0.099, 0.127] | +0.044 [0.031, 0.057] |
-| DKT − IRT-1PL | +0.189 [0.094, 0.261] | +0.053 [0.035, 0.068] | −0.017 [−0.032, −0.002] |
+The same comparison on all three student splits - mean (range), with each split's 95%
+student-level bootstrap CI in `results/SUMMARY.md`:
 
-The raw-trained DKT is not a worse model - scored once per attempt it matches the collapsed
-one (0.749 vs 0.753). The inflation is entirely in *what gets scored*: 13,372 of the 28,425
-raw test rows are answered by the row before them. Our collapse of the original file matches
-the publisher's own `skill_builder_data_corrected_collapsed.csv` exactly (283,105 attempts,
-same ids, same outcomes - `results/assist09/data.json`, `crosscheck`).
+| test AUC, 3 student splits | raw | expanded | collapsed |
+|---|---|---|---|
+| DKT | 0.907 (0.890 to 0.920) | 0.817 (0.806 to 0.824) | 0.746 (0.731 to 0.754) |
+| DKT, scored once per attempt | 0.740 (0.723 to 0.749) | - | - |
+| DKT − BKT | +0.144 (+0.104 to +0.183) | +0.106 (+0.104 to +0.108) | +0.028 (+0.024 to +0.032) |
+| DKT − IRT-1PL | +0.162 (+0.148 to +0.189) | +0.049 (+0.047 to +0.053) | −0.023 (−0.029 to −0.017) |
+
+The seed-0 split, the one the first version of this README quoted alone, is the most
+flattering of the three for raw DKT (+0.183 over BKT); seed 2 gives +0.104. Scored once per
+attempt, the raw-trained DKT lands 0.004 to 0.008 below the collapsed one on every split (0.740
+vs 0.746 on average): almost all of the inflation is in *what gets scored* - 13,372 of the
+28,425 seed-0 raw test rows are answered by the row before them - and a little is a worse
+model. Our collapse of the original file matches the publisher's own
+`skill_builder_data_corrected_collapsed.csv` exactly (283,105 attempts, same ids, same
+outcomes - `results/assist09/data.json`, `crosscheck`).
+
+#### The raw headline rests on a handful of students
+
+The 121,207 repeated records belong to 133 of 4,163 students, and the top ten of them own
+26.7% of the copies. How many land in the 208-student test set is luck of the split:
+
+| split seed | test students with repeated records | their share of val rows | their share of test rows | DKT val AUC | DKT test AUC | DKT test AUC without them | DKT − BKT without them |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 9 | 19.7% | 44.7% | 0.871 | 0.920 | 0.830 | +0.105 |
+| 1 | 7 | 16.5% | 31.9% | 0.860 | 0.890 | 0.814 | +0.115 |
+| 2 | 8 | 29.2% | 33.7% | 0.896 | 0.909 | 0.823 | +0.112 |
+| mean | - | 21.8% | 36.7% | 0.875 | 0.907 | 0.822 | +0.110 |
+
+This explains a number that looked wrong: raw DKT scores *higher* on test than on validation
+on every split (0.907 vs 0.875), because test drew a larger share of repeated-record rows each
+time. Drop those 7-9 students and raw DKT falls to 0.822, with a lead over BKT of +0.110 - the
+same as on the expanded rows (+0.106), which have the repeated records removed and only the
+multi-skill copies left. So the gap between raw and expanded is those few students; the gap
+between expanded and collapsed is multi-skill copying.
 
 Collapsed, all models, train / val / test:
 
@@ -240,15 +303,18 @@ we chose; EM must recover them):
 ```
 
 **2. Picking the next exercise** - `uv run kt recommend --history examples/history.csv`
-(BKT fitted on ASSIST09, committed in `models/`):
+(the default model: the BKT fitted on ASSIST09 by `kt study`, packaged in
+`src/kt/pretrained/`; the history is 3/4 right on Order of Operations, 4/4 on Venn Diagram,
+1/3 on Box and Whisker, 0/3 on Area Rectangle):
 
 ```
+model: BKT (packaged assist09_bkt.json); mastery = P(known) >= 0.95
 history: 14 attempts over 4 skills
-P(correct)  skill
-     0.611  296:Area Rectangle
-     0.661  1:Box and Whisker
-     0.696  310:Order of Operations All  <- next
-     0.803  11:Venn Diagram
+P(correct)  P(known)  skill
+     0.611     0.503  296:Area Rectangle
+     0.661     0.526  1:Box and Whisker
+     0.696     0.917  310:Order of Operations All  <- next
+     0.803     1.000  11:Venn Diagram  (mastered)
 
 next exercise: 310:Order of Operations All (predicted P(correct) 0.70 is closest to target 0.70)
 ```
@@ -257,6 +323,28 @@ Three wrong answers leave *Area Rectangle* at 0.611 rather than near the floor: 
 prior is 0.897 and its learn rate 0.428, so BKT assumes a student who got it wrong has probably
 just learnt it. That is the model's opinion, faithfully reported - and a reason finding 5
 checks what the numbers mean before a tutor acts on them.
+
+The same history with `--model irt`, which is why IRT is *not* the default even though the
+item-level IRT wins the study:
+
+```
+model: IRT (packaged assist09_irt.json); mastery = P(correct) >= 0.95
+history: 14 attempts over 4 skills
+P(correct)            skill
+     0.452            1:Box and Whisker
+     0.470            310:Order of Operations All
+     0.637            11:Venn Diagram  <- next
+     0.806            296:Area Rectangle
+
+next exercise: 11:Venn Diagram (predicted P(correct) 0.64 is closest to target 0.70)
+```
+
+A history names skills, not problems, so the packaged IRT has no item offsets: it is a
+skill-level 1PL with one ability shared by every skill. It ranks the skill failed three times
+first because Area Rectangle is an easy skill for everyone, and it ignores which skill the
+evidence came from. That skill-level model is weaker than the item-level IRT in the table
+above (test AUC 0.724 against 0.771), and a regression test pins the behaviour so the
+docstring cannot drift from it.
 
 **3. What is in the data** - `uv run kt inspect --data data/raw/skill_builder_data_original.csv --variant raw`:
 
@@ -282,16 +370,28 @@ checks what the numbers mean before a tutor acts on them.
 
 Duplicated rows are not a random sample: the correct rate is 0.690 with them and 0.658 without.
 
-**4. A bad input** - a skill the model does not know, and a non-binary answer:
+**4. Bad input** - an unknown skill, a non-binary answer, an impossible target, a missing file:
 
 ```
-$ uv run kt recommend --history h.csv          # h.csv names "Circle Graph"
+$ uv run kt recommend --history h.csv                  # h.csv names "Circle Graph"
 error: unknown skill 'Circle Graph'; 5 names contain it. Run `kt skills` to list them.
-$ uv run kt recommend --history bad.csv        # correct column says "yes"
-error: ...ad.csv line 2: correct must be 0 or 1, got 'yes'
+$ uv run kt recommend --model irt --history h.csv
+error: unknown skill 'Circle Graph'; 5 names contain it. Run `kt skills --model irt` to list them.
+$ uv run kt recommend --history bad.csv                # correct column says "yes"
+error: bad.csv line 2: correct must be 0 or 1, got 'yes'
+$ uv run kt recommend --history ok.csv --target 1.5
+error: target must be in (0, 1): it is a predicted P(correct)
+$ uv run kt study --data nope.csv --variant raw
+error: nope.csv does not exist: scripts/fetch_data.sh downloads the datasets
+$ uv run kt study --data data/raw/skill_builder_data_original.csv --variant raw
+error: --variant must include 'collapsed' (the headline variant)
 ```
 
-**5. The model arm, planned but not run** - `scripts/run_models.sh --dry-run`:
+Each exits with status 2.
+
+**5. The model arm, planned but not run** - `scripts/run_models.sh --dry-run` (it needs the
+ASSISTments file: the job list holds real students' histories, which the data terms forbid
+passing on, so it is rebuilt from `data/raw/` rather than committed):
 
 ```
 == job list
@@ -309,8 +409,18 @@ Can an instruction-tuned LLM read an answer history as text and predict the next
 `kt llm build` froze 300 ASSIST09 test attempts (from 172 students, at most two per student,
 each with at least five earlier attempts) into `results/assist09/llm_jobs.jsonl`, together
 with every classical model's prediction for exactly those rows. Each prompt lists the last 30
-attempts as `skill: correct/incorrect` and asks for `{"p_correct": x}`. Unparseable replies
-are scored as a base-rate guess and counted, never dropped. Every generation is cached on disk
+attempts as `skill: correct/incorrect` and asks for `{"p_correct": x}`. **The LLM sees less
+than the classical models:** they condition on the student's whole history, and the sampled
+rows sit at position 52 on average, so most prompts drop earlier attempts (they say how many).
+That is a deliberate cap on prompt length, not a like-for-like comparison, and the write-up of
+the run will say so. Unparseable replies - including a decimal above 1, which is neither a
+probability nor a plausible percentage - are scored as a base-rate guess and counted, never
+dropped.
+
+Because the sample takes at most two rows per student, it weights students equally rather
+than attempts. Its correct rate (0.557) is therefore compared with the eligible test rows'
+rate both per attempt and averaged per student (`results/assist09/llm_sample.json`, and the
+last table of `results/SUMMARY.md`). Every generation is cached on disk
 by (model, prompt hash, options). `scripts/run_models.sh` checks free RAM and GPU memory
 before it starts. No LLM number appears in this README because none has been produced.
 
@@ -320,7 +430,7 @@ before it starts. No LLM number appears in this README because none has been pro
 git clone https://github.com/hammasbuilds/knowledge-tracing
 cd knowledge-tracing
 uv sync
-uv run pytest -q                 # 71 tests, no data or network needed
+uv run pytest -q                 # 97 tests, no data or network needed
 uv run python demo.py            # known-answer checks + one real recommendation
 
 scripts/fetch_data.sh            # ASSISTments 2009 (+ official collapsed file) and Algebra 2005, sha256-checked
@@ -331,6 +441,10 @@ uv run kt study --dataset algebra05 --data data/raw/algebra_2005_2006.zip \
 uv run kt report                 # results/SUMMARY.md
 ```
 
+`kt study` writes the fitted BKT, IRT and DKT to `src/kt/pretrained/` - the one place models
+live, and the place `kt recommend --model bkt|irt` reads from (`--models-dir` sends them
+elsewhere; a `--quick` smoke run saves none, so it cannot overwrite the packaged models).
+
 ## Layout
 
 ```
@@ -338,6 +452,8 @@ src/kt/
   data.py         ASSISTments 2009 and KDD Cup 2010 loaders; raw / expanded / collapsed variants
   splits.py       split by student (80/15/5) and the leaky split by row
   seq.py          "what is visible at horizon k" index arithmetic shared by every model
+  audit.py        where the raw file's extra rows come from and which students own them
+  synthetic.py    students simulated from known BKT parameters (demo and tests)
   models/
     baseline.py   ItemMean: smoothed item -> skill -> global correct rate, no history
     bkt.py        BKT per skill, EM with exact constrained M-step and pooled fallback
@@ -346,11 +462,12 @@ src/kt/
     dkt.py        DKT: numpy LSTM with a hand-written, gradient-checked backward pass
   metrics.py      AUC (ties averaged), RMSE, log loss, ECE, student-level cluster bootstrap
   policy.py       next-exercise recommendation, band check, Leopard effort/score
+  tutor.py        load a packaged model, read a history CSV, report per-skill state, pick next
   study.py        the experiments; run.py writes them to results/<dataset>/
   llm.py          prompts, cached Ollama client, sampling, scoring (the model arm)
   report.py       results/*.json -> results/SUMMARY.md
   cli.py          kt study | inspect | recommend | skills | report | llm build/run/score
-models/           fitted BKT (json) and DKT (npz) for both datasets
+  pretrained/     the fitted BKT, IRT (json) and DKT (npz) for both datasets, written by kt study
 results/          every number in this README
 scripts/          fetch_data.sh, run_models.sh
 examples/         the history used in Input / Output
@@ -365,7 +482,7 @@ dataset, peaked at about 500 MB.
 ## Tests
 
 ```bash
-uv run pytest -q    # 71 tests, ~20 s
+uv run pytest -q    # 97 tests, ~50 s
 uv run ruff check
 ```
 
@@ -381,13 +498,18 @@ The ones that carry weight:
   difference and includes 0.5 for noise.
 - The whole study runs end to end on a synthetic ASSISTments-format file, including the report,
   the saved-prediction reload and the LLM job builder (with a fake client).
+- The packaged default model ranks a skill answered 8/8 right above one answered 0/6, and the
+  packaged IRT's documented failure to do so is pinned too, so the tutor's docstring stays true.
 
 Tests use fixtures and fakes only: no network, no dataset, no model.
 
 ## What this does NOT do
 
 - **It does not run the LLM.** The arm is built and tested with a fake client; its result is
-  queued, not reported.
+  queued, not reported. When it runs, the LLM sees at most the last 30 attempts while the
+  classical models see the whole history.
+- **The tutor cannot use the best model.** `kt recommend` reads skill names, so it runs BKT or
+  a skill-level IRT, not the item-level IRT that wins the study.
 - **DKT here reads skills, not items**, as in the original paper. IRT uses item identity, which
   is part of why it wins on ASSIST09; a DKT with item embeddings might close that gap and was
   not tried.
@@ -432,6 +554,20 @@ Tests use fixtures and fakes only: no network, no dataset, no model.
    jobs were using the cores. `kt` sets `OMP_NUM_THREADS=1` (and friends) unless the caller has
    set them; the ASSIST09 study went from an estimated 3+ hours to 31 minutes. `np.add.at`,
    the other hot spot, was replaced with a sorted `reduceat`.
+8. **The tutor's first default was a model the study never scored.** `kt recommend` defaulted
+   to IRT because the item-level IRT won the study - but the saved IRT had no item offsets (a
+   history names skills, not problems), so what shipped was a skill-level 1PL with one shared
+   ability. A reviewer found it ranking a skill answered 8/8 right below one answered 0/6.
+   BKT, which is per-skill and is exactly the model the study scores, is now the default; the
+   skill-level IRT is scored on its own (`irt_skill_level`) and the ranking is a regression
+   test.
+9. **The LLM reply parser read `1.5` as 1.5%.** Any value above 1 was divided by 100, so a
+   malformed probability became a confident 0.015. Only a `%` sign or a whole number from 2
+   to 100 is now read as a percentage; anything else above 1 is unparseable and counted.
+10. **The first write-up quoted one split for the raw headline** - seed 0, which turned out to
+   be the most flattering of three (DKT − BKT +0.183 against +0.104 on seed 2), with raw test
+   AUC *above* validation. Tracing that surprise led to the concentration table: the test split
+   had drawn nine of the 133 students who own every repeated record.
 
 ## Keywords
 
