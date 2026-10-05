@@ -71,9 +71,7 @@ def seeds(d: Path) -> list[str]:
     out = [
         f"### {runs[0]['dataset']}: test AUC on {len(runs)} different student splits",
         "",
-        "| model | "
-        + " | ".join(f"seed {r['split']['seed']}" for r in runs)
-        + " | mean (range) |",
+        "| model | " + " | ".join(f"seed {r['split']['seed']}" for r in runs) + " | mean (range) |",
         "|---|" + "---:|" * (len(runs) + 1),
     ]
     for f in FAMILIES:
