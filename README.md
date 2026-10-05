@@ -24,6 +24,8 @@ Inspired by [HKUDS/DeepTutor](https://github.com/HKUDS/DeepTutor): this rebuilds
 student-modelling core an adaptive tutor needs - *what does this student know, and what
 should they do next?* - from scratch. No code from it is used.
 
+**Status:** classical models and every number below: done. LLM arm: built and tested against a fake; GPU run pending.
+
 ## The through-line
 
 ```mermaid
@@ -389,7 +391,7 @@ error: --variant must include 'collapsed' (the headline variant)
 
 Each exits with status 2.
 
-**5. The model arm, planned but not run** - `scripts/run_models.sh --dry-run` (it needs the
+**5. The model arm (GPU run pending)** - `scripts/run_models.sh --dry-run` (it needs the
 ASSISTments file: the job list holds real students' histories, which the data terms forbid
 passing on, so it is rebuilt from `data/raw/` rather than committed):
 
@@ -403,7 +405,7 @@ passing on, so it is rebuilt from `data/raw/` rather than committed):
 (dry run: no model was called)
 ```
 
-## The LLM arm (built, queued, not run)
+## The LLM arm (GPU run pending)
 
 Can an instruction-tuned LLM read an answer history as text and predict the next answer?
 `kt llm build` froze 300 ASSIST09 test attempts (from 172 students, at most two per student,
@@ -505,8 +507,8 @@ Tests use fixtures and fakes only: no network, no dataset, no model.
 
 ## What this does NOT do
 
-- **It does not run the LLM.** The arm is built and tested with a fake client; its result is
-  queued, not reported. When it runs, the LLM sees at most the last 30 attempts while the
+- **It does not run the LLM.** The arm is built and tested with a fake client; its GPU run
+  is pending, so no result is reported. When it runs, the LLM sees at most the last 30 attempts while the
   classical models see the whole history.
 - **The tutor cannot use the best model.** `kt recommend` reads skill names, so it runs BKT or
   a skill-level IRT, not the item-level IRT that wins the study.
